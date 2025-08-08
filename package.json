@@ -28,7 +28,12 @@
     "vite": "^7.1.0"
   },
   "dependencies": {
+    "@leodeslf/perlin-noise": "^1.1.2",
+    "BufferGeometryUtils.js": "link:three/addons/utils/BufferGeometryUtils.js",
     "WebGPURenderer.js": "link:three/examples/jsm/renderers/WebGPURenderer.js",
-    "three": "^0.179.1"
+    "alea": "^1.0.1",
+    "simplex-noise": "^4.0.3",
+    "three": "^0.179.1",
+    "three-subdivide": "^1.1.5"
   }
 }

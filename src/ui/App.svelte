@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gamePaused } from './stores';
-  import { getControls } from '../game/main';
+  import { getPlayer } from '../game/main';
 
   let paused = $state(true);
   let instructionsVisible = $state(true);
@@ -11,23 +11,23 @@
     
     // Small delay to ensure game is initialized
     setTimeout(() => {
-      const controls = getControls();
-      if (controls) {
+      const player = getPlayer();
+      if (player) {
         // Set up pointer lock event listeners
-        controls.onLock(() => {
+        player.onLock(() => {
           instructionsVisible = false;
         });
         
-        controls.onUnlock(() => {
+        player.onUnlock(() => {
           paused = true;
           gamePaused.set(true);
           instructionsVisible = true;
         });
         
         // Lock the pointer
-        controls.lock();
+        player.lock();
       }
-    }, 10);
+    }, 100);
   }
 </script>
 

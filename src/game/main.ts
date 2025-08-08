@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import { createRenderer } from './core/renderer';
 import { FirstPersonControls } from './core/controls';
+import { WorldMesh } from './core/world';
+import { PlayerPositionController } from './core/player';
 
 let gameRunning = false;
 let controls: FirstPersonControls;
+let player: PlayerPositionController;
 let camera: THREE.PerspectiveCamera;
 let renderer: any;
+let world: WorldMesh;
 
 export function startGame() {
   if (gameRunning) return;
@@ -15,8 +19,16 @@ export function startGame() {
   renderer = createRenderer(canvas);
 
   const scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 10, 5);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+  camera.position.set(0, 3010, 0);
+
+  // Add some lighting for the world
+  const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+  scene.add(ambientLight);
+  
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  directionalLight.position.set(1000, 2000, 1000);
+  scene.add(directionalLight);
 
   // Handle window resize
   const handleResize = () => {
@@ -25,34 +37,19 @@ export function startGame() {
       camera.updateProjectionMatrix();
     }
   };
-  
   window.addEventListener('resize', handleResize);
 
-  // Initialize controls
+  // Initialize player position controller first
+  const initialPosition = new THREE.Vector3(0, 3010, 0);
+  player = new PlayerPositionController(camera, initialPosition);
+  
+  // Initialize controls (simplified now)
   controls = new FirstPersonControls(camera, document.body);
   
-  // Add controls object to scene
-  scene.add(controls.object);
+  // Don't add anything to scene - player manages camera directly
 
-  // Create a simple ground
-  const groundGeometry = new THREE.PlaneGeometry(100, 100);
-  const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, side: THREE.DoubleSide });
-  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
-
-  // Add some cubes to look at
-  for (let i = 0; i < 10; i++) {
-    const geometry = new THREE.BoxGeometry(2, 2, 2);
-    const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
-    const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(
-      (Math.random() - 0.5) * 50,
-      1,
-      (Math.random() - 0.5) * 50
-    );
-    scene.add(cube);
-  }
+  // Create the world mesh system
+  world = new WorldMesh(scene, 3);
 
   const clock = new THREE.Clock();
 
@@ -64,6 +61,12 @@ export function startGame() {
     const delta = clock.getDelta();
     controls.update(delta);
     
+    // Update player position and camera
+    player.update(delta);
+    
+    // Update world based on player position
+    world.update(player.getPosition());
+    
     renderer.render(scene, camera);
   }
   animate();
@@ -71,4 +74,8 @@ export function startGame() {
 
 export function getControls() {
   return controls;
+}
+
+export function getPlayer() {
+  return player;
 }
