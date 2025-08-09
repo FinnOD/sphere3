@@ -69,12 +69,12 @@ export function startGame() {
         world.update(player.getPosition());
 
         // Add chunk info to debug (but don't overwrite other debug data)
-        const currentChunkIndex = world.getCurrentChunkIndex();
-        if (currentChunkIndex !== undefined) {
-            sphereDebug.update({
-                chunkIndex: currentChunkIndex
-            });
-        }
+        // const currentChunkIndex = world.getCurrentChunkIndex();
+        // if (currentChunkIndex !== undefined) {
+        //     sphereDebug.update({
+        //         chunkIndex: currentChunkIndex
+        //     });
+        // }
 
         renderer.render(scene, camera);
     }

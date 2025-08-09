@@ -2,139 +2,164 @@ import * as THREE from 'three';
 import Hexasphere from './Hexasphere.js';
 import { generateWorldGeometry } from './GenerateWorldGeometry';
 import { getDisplacement } from './SphereNoise.js';
+import { ChunkManager, FarawayChunkManager } from './ChunkManagers';
+
+const DISTANCE_TO_DETAIL = {
+    0: 8, // Player's current chunk - highest detail
+    1: 8 // Adjacent chunks - high detail
+} as const;
+
+const CHUNK_RENDER_DISTANCE = Math.max(...Object.keys(DISTANCE_TO_DETAIL).map(Number));
 
 export class WorldMesh {
+    private scene: THREE.Scene;
+    private defaultDetail: number;
+
     private hexasphere: Hexasphere;
-    private pureTiles: THREE.BufferGeometry[];
-    private triGeoms: THREE.BufferGeometry[];
-    private midPoints: THREE.Vector3[];
+    private pureTiles: Array<THREE.BufferGeometry>;
+    private triGeoms: Array<THREE.BufferGeometry>;
+    private midPoints: Array<THREE.Vector3>;
+
     private neighboursByIndex: number[][];
     private distanceMatrix: number[][];
     private maxDistance: number;
-    private scene: THREE.Scene;
-    private playerPosition: THREE.Vector3;
-    private currentChunkIndex: number = 0;
-    private chunkRenderDist: number = 1;
-    private detailLevels: { [key: number]: number } = {
-        0: 7,
-        1: 7
-    };
+    private chunkIndex: number;
 
-    // Mesh containers
-    private nearbyChunks: THREE.Group;
-    private farawayChunks: THREE.Group;
-    private markers: THREE.Group;
-    private cameraMarker!: THREE.Mesh;
+    private chunkManager: ChunkManager;
+    private farawayChunkManager: FarawayChunkManager;
 
-    // Materials
-    private groundMaterial!: THREE.MeshStandardMaterial;
-    private markerMaterial!: THREE.MeshPhongMaterial;
-    private sphereMaterial!: THREE.MeshPhongMaterial;
-    private cameraMarkerMaterial!: THREE.MeshPhongMaterial;
-
-    constructor(scene: THREE.Scene, defaultDetail: number = 3) {
+    constructor(scene: THREE.Scene, defaultDetail: number = 3, showDebugMarkers: boolean = false) {
+        let playerPosition = new THREE.Vector3(0, -2998, 0); // Actually get it for construction
         this.scene = scene;
-        this.playerPosition = new THREE.Vector3(0, 10, 0);
+        this.defaultDetail = defaultDetail;
 
-        // Create hexasphere and generate world geometry
+        // Initialize chunk managers
+        this.chunkManager = new ChunkManager(scene);
+        this.farawayChunkManager = new FarawayChunkManager(scene);
+
         this.hexasphere = new Hexasphere(3000, 12, 1.0);
-        const [pureTiles, triGeoms, midPoints] = generateWorldGeometry(
+        [this.pureTiles, this.triGeoms, this.midPoints] = generateWorldGeometry(
             this.hexasphere,
             defaultDetail
         );
 
-        this.pureTiles = pureTiles;
-        this.triGeoms = triGeoms;
-        this.midPoints = midPoints;
-
-        // Calculate neighbor relationships and distances
-        this.neighboursByIndex = this.getNeighboursByIndex();
-        this.distanceMatrix = this.createDistanceMatrix();
+        this.chunkIndex = this.closestChunk(playerPosition);
+        this.neighboursByIndex = this.getNeighboursByIndex(this.hexasphere);
+        this.distanceMatrix = this.createDistanceMatrix(this.neighboursByIndex);
         this.maxDistance = this.distanceMatrix.reduce((max, row) => Math.max(max, ...row), 0);
 
-        console.log('Max distance:', this.maxDistance);
+        // Optional debug visualization of chunk midpoints
+        if (showDebugMarkers) {
+            this.addDebugMarkers();
+        }
 
-        // Create materials
-        this.createMaterials();
-
-        // Create mesh groups
-        this.nearbyChunks = new THREE.Group();
-        this.farawayChunks = new THREE.Group();
-        this.markers = new THREE.Group();
-
-        this.scene.add(this.nearbyChunks);
-        this.scene.add(this.farawayChunks);
-        this.scene.add(this.markers);
-
-        // Initial render
-        this.updateChunks();
-        this.createMarkers();
-        this.createCameraMarker();
+        this.update(playerPosition);
     }
 
-    private createMaterials() {
-        this.groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8b7355,
-            roughness: 0.8,
-            metalness: 0.1,
-            side: THREE.BackSide
-        });
-
-        this.markerMaterial = new THREE.MeshPhongMaterial({
-            color: 0xffffff,
+    private addDebugMarkers(): void {
+        const markerGeometry = new THREE.SphereGeometry(3, 20, 20);
+        const markerMaterial = new THREE.MeshPhongMaterial({
+            color: 'white',
             wireframe: false
         });
 
-        this.sphereMaterial = new THREE.MeshPhongMaterial({
-            color: 0xff69b4,
-            wireframe: false
-        });
-
-        this.cameraMarkerMaterial = new THREE.MeshPhongMaterial({
-            color: 0x00ff00, // Bright green for camera position
-            side: THREE.DoubleSide,
-            wireframe: false
-        });
+        for (let i = 0; i < this.midPoints.length; i++) {
+            const mpDisp = this.mpDisp(this.midPoints[i]);
+            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            marker.position.copy(mpDisp);
+            marker.name = `debug-marker-${i}`;
+            this.scene.add(marker);
+        }
     }
 
-    private getNeighboursByIndex(): number[][] {
-        const neighbourIndexes: number[][] = [];
-        const keys = Object.keys(this.hexasphere.tileLookup);
+    public update(playerPosition: THREE.Vector3) {
+        const newChunkIndex = this.closestChunk(playerPosition);
+        if (newChunkIndex === this.chunkIndex) return;
 
-        for (const tileId in this.hexasphere.tileLookup) {
-            const neighbours = (this.hexasphere.tileLookup as any)[tileId];
-            const currentIndexes: number[] = [];
+        this.chunkIndex = newChunkIndex;
+
+        // Calculate nearby and faraway indices
+        const nearbyIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, true);
+        const farawayIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, false);
+
+        console.log(`Chunks - Nearby: ${nearbyIndices.length}, Faraway: ${farawayIndices.length}`);
+
+        // Update chunks using managers
+        this.chunkManager.updateChunks(
+            nearbyIndices,
+            this.pureTiles,
+            this.getDetailForDistance.bind(this),
+            this.distanceMatrix,
+            this.chunkIndex
+        );
+
+        this.farawayChunkManager.updateFarawayChunks(
+            farawayIndices,
+            this.triGeoms,
+            this.distanceMatrix,
+            this.chunkIndex,
+            this.maxDistance
+        );
+    }
+
+    private getChunkIndicesByDistance(maxDistance: number, withinDistance: boolean): number[] {
+        return this.distanceMatrix[this.chunkIndex]
+            .map((distance, index) => ({ distance, index }))
+            .filter(({ distance }) =>
+                withinDistance ? distance <= maxDistance : distance > maxDistance
+            )
+            .map(({ index }) => index);
+    }
+
+    private getDetailForDistance(distance: number): number {
+        return (
+            DISTANCE_TO_DETAIL[distance as keyof typeof DISTANCE_TO_DETAIL] ?? this.defaultDetail
+        );
+    }
+
+    public getChunkStats(): { nearby: number; faraway: number; total: number } {
+        return {
+            nearby: this.chunkManager.getLoadedChunkCount(),
+            faraway: this.farawayChunkManager.getLoadedCount(),
+            total: this.scene.children.length
+        };
+    }
+
+    private getNeighboursByIndex(hex: Hexasphere): number[][] {
+        let neighbourIndexes: number[][] = [];
+        const keys = Object.keys(hex.tileLookup);
+
+        for (const tileId in hex.tileLookup) {
+            const neighbours = (hex.tileLookup as any)[tileId];
+            const currentIndexes = [];
 
             for (const neighborId of neighbours.neighborIds) {
                 const index = keys.findIndex((id) => id === neighborId);
-                if (index >= 0) {
-                    currentIndexes.push(index);
-                }
+                if (index < 0) console.log(neighborId);
+                currentIndexes.push(index);
             }
             neighbourIndexes.push(currentIndexes);
         }
         return neighbourIndexes;
     }
 
-    private createDistanceMatrix(): number[][] {
-        const numTiles = this.neighboursByIndex.length;
+    private createDistanceMatrix(neighbourIndexes: number[][]): number[][] {
+        const numTiles = neighbourIndexes.length;
         const distanceMatrix: number[][] = [];
 
-        // Initialize with infinity
+        // Initialize the distance matrix with infinity values.
         for (let i = 0; i < numTiles; i++) {
             distanceMatrix[i] = Array(numTiles).fill(Infinity);
-            distanceMatrix[i][i] = 0;
+            distanceMatrix[i][i] = 0; // Distance to itself is 0.
         }
 
-        // BFS to populate distances
+        // Populate the distance matrix using BFS.
         for (let i = 0; i < numTiles; i++) {
             const queue = [i];
             const visited = new Set([i]);
-
             while (queue.length > 0) {
-                const currentTile = queue.shift()!;
-
-                for (const neighbour of this.neighboursByIndex[currentTile]) {
+                const currentTile = queue.shift() as number;
+                for (const neighbour of neighbourIndexes[currentTile]) {
                     if (!visited.has(neighbour)) {
                         distanceMatrix[i][neighbour] = distanceMatrix[i][currentTile] + 1;
                         visited.add(neighbour);
@@ -147,12 +172,11 @@ export class WorldMesh {
         return distanceMatrix;
     }
 
-    private closestChunk(playerPos: THREE.Vector3): number {
+    private closestChunk(playerPosition: THREE.Vector3): number {
         let closest = 0;
         let closestDist = Infinity;
-
         for (let i = 0; i < this.midPoints.length; i++) {
-            const distance = this.midPoints[i].distanceToSquared(playerPos);
+            let distance = this.midPoints[i].distanceToSquared(playerPosition);
             if (distance < closestDist) {
                 closest = i;
                 closestDist = distance;
@@ -162,142 +186,15 @@ export class WorldMesh {
         return closest;
     }
 
-    private getNearbyIndices(chunkIndex: number): number[] {
-        return this.distanceMatrix[chunkIndex]
-            .map((d, i) => (d <= this.chunkRenderDist ? i : -1))
-            .filter((v) => v >= 0);
-    }
+    private mpDisp(mp: THREE.Vector3): THREE.Vector3 {
+        let normal = mp.clone().normalize();
+        let onSphere = normal.clone().multiplyScalar(3000);
 
-    private getFarawayIndices(chunkIndex: number): number[] {
-        return this.distanceMatrix[chunkIndex]
-            .map((d, i) => (d > this.chunkRenderDist ? i : -1))
-            .filter((v) => v >= 0);
-    }
-
-    private createChunkMesh(geometryIndex: number, isNearby: boolean = false): THREE.Mesh {
-        const geometry = isNearby ? this.triGeoms[geometryIndex] : this.triGeoms[geometryIndex];
-
-        let material: THREE.Material;
-        if (isNearby) {
-            // Create colored material based on distance
-            const distance = this.distanceMatrix[this.currentChunkIndex][geometryIndex];
-            const hue = (2 * distance) / this.maxDistance;
-            material = new THREE.MeshStandardMaterial({
-                color: new THREE.Color().setHSL(hue, 0.9, 0.7),
-                roughness: 0.8,
-                metalness: 0.1,
-                side: THREE.BackSide
-            });
-        } else {
-            material = this.groundMaterial;
-        }
-
-        return new THREE.Mesh(geometry, material);
-    }
-
-    private updateChunks() {
-        // Clear existing chunks
-        this.nearbyChunks.clear();
-        this.farawayChunks.clear();
-
-        const nearbyIndices = this.getNearbyIndices(this.currentChunkIndex);
-        const farawayIndices = this.getFarawayIndices(this.currentChunkIndex);
-
-        // Add nearby chunks with detail
-        for (const i of nearbyIndices) {
-            const mesh = this.createChunkMesh(i, true);
-            this.nearbyChunks.add(mesh);
-        }
-
-        // Add faraway chunks with less detail
-        for (const i of farawayIndices) {
-            const mesh = this.createChunkMesh(i, false);
-            this.farawayChunks.add(mesh);
-        }
-    }
-
-    private createMarkers() {
-        const sphereGeometry = new THREE.SphereGeometry(3, 20, 20);
-
-        // Center sphere
-        const centerSphere = new THREE.Mesh(sphereGeometry, this.sphereMaterial);
-        centerSphere.scale.setScalar(20);
-        this.markers.add(centerSphere);
-
-        // Midpoint markers
-        for (const mp of this.midPoints) {
-            const position = this.mpDisp(mp);
-            const marker = new THREE.Mesh(sphereGeometry, this.markerMaterial);
-            marker.position.set(position[0], position[1], position[2]);
-            this.markers.add(marker);
-        }
-    }
-
-    private createCameraMarker() {
-        // Create a bright green cube for camera position (20m size for visibility)
-        const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
-        this.cameraMarker = new THREE.Mesh(cubeGeometry, this.cameraMarkerMaterial);
-
-        // Position it at a fixed location on the sphere surface for now
-        this.cameraMarker.position.set(0, 3010, 0); // 10m above sphere surface
-        this.scene.add(this.cameraMarker);
-
-        console.log('Camera marker created at:', this.cameraMarker.position);
-    }
-
-    private mpDisp(mp: THREE.Vector3): number[] {
-        const normal = mp.clone().normalize();
-        const onSphere = normal.clone().multiplyScalar(3000);
-
-        // Disable noise displacement for now - just use sphere surface
-        const noise = getDisplacement(onSphere.x, onSphere.y, onSphere.z);
-        // const noise = 0;
-        const ballOffset = normal.clone(); //.multiplyScalar(-3);
+        let noise = getDisplacement(onSphere.x, onSphere.y, onSphere.z);
+        let ballOffset = normal.clone().multiplyScalar(-3);
 
         onSphere.add(normal.multiplyScalar(-noise)).add(ballOffset);
 
-        return [onSphere.x, onSphere.y, onSphere.z];
-    }
-
-    public update(playerPosition: THREE.Vector3) {
-        this.playerPosition.copy(playerPosition);
-
-        let playerNormalOnSphere = playerPosition.clone().normalize().multiplyScalar(3000);
-
-        let noise = getDisplacement(
-            playerNormalOnSphere.x,
-            playerNormalOnSphere.y,
-            playerNormalOnSphere.z
-        );
-        let normal = playerNormalOnSphere.clone().normalize().multiplyScalar(-noise);
-        playerNormalOnSphere.add(normal);
-        this.cameraMarker.position.copy(playerNormalOnSphere); // Slightly above player position
-
-        // For debugging, log the player position
-        // if (Math.random() < 0.01) {
-        //     // Log occasionally to avoid spam
-        //     console.log('Player position:', playerPosition);
-        //     console.log('Camera marker position:', this.cameraMarker.position);
-        // }
-
-        const newChunkIndex = this.closestChunk(playerPosition);
-
-        if (newChunkIndex !== this.currentChunkIndex) {
-            this.currentChunkIndex = newChunkIndex;
-            this.updateChunks();
-        }
-    }
-
-    public setChunkRenderDistance(distance: number) {
-        this.chunkRenderDist = distance;
-        this.updateChunks();
-    }
-
-    public toggleMarkers(visible: boolean) {
-        this.markers.visible = visible;
-    }
-
-    public getCurrentChunkIndex(): number {
-        return this.currentChunkIndex;
+        return onSphere;
     }
 }
