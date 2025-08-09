@@ -1,5 +1,6 @@
-import { perlin3D } from '@leodeslf/perlin-noise';
 import { createNoise3D, type NoiseFunction3D } from 'simplex-noise';
+// @ts-ignore
+import { perlin3D } from '@leodeslf/perlin-noise';
 import alea from 'alea';
 
 const prng = alea('random_seed');
@@ -16,9 +17,9 @@ export function getDisplacementOld(x: number, y: number, z: number): number {
     y = y / 10;
     z = z / 10;
 
-    x = x / 100;
-    y = y / 100;
-    z = z / 100;
+    // x = x / 100;
+    // y = y / 100;
+    // z = z / 100;
 
     let max = 10;
     let min = -2;

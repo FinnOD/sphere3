@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import Hexasphere from '../extras/Hexasphere.js';
-import { generateWorldGeometry } from '../extras/GenerateWorldGeometry';
-import { getDisplacement } from '../extras/SphereNoise';
+import Hexasphere from './Hexasphere.js';
+import { generateWorldGeometry } from './GenerateWorldGeometry';
+import { getDisplacement } from './SphereNoise.js';
 
 export class WorldMesh {
     private hexasphere: Hexasphere;
@@ -24,7 +24,7 @@ export class WorldMesh {
     private nearbyChunks: THREE.Group;
     private farawayChunks: THREE.Group;
     private markers: THREE.Group;
-    private cameraMarker: THREE.Mesh;
+    private cameraMarker!: THREE.Mesh;
 
     // Materials
     private groundMaterial!: THREE.MeshStandardMaterial;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createRenderer } from './core/renderer';
 import { FirstPersonControls } from './core/controls';
-import { WorldMesh } from './core/world';
+import { WorldMesh } from './world/world';
 import { PlayerPositionController } from './core/player';
 import { sphereDebug } from './core/debug';
 

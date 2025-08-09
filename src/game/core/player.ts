@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { sphereDebug } from './debug';
-import { getDisplacement } from '../extras/SphereNoise';
+import { getDisplacement } from '../world/SphereNoise';
 
 const KEYS = {
     KeyW: 'forward',

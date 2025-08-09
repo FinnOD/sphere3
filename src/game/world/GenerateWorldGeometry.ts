@@ -1,7 +1,8 @@
 import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
-import type Hexasphere from './Hexasphere';
+import type Hexasphere from '../world/Hexasphere';
 import { LoopSubdivision } from 'three-subdivide';
-import { getDisplacement } from './SphereNoise';
+import { getDisplacement } from '../world/SphereNoise';
+// @ts-ignore
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils';
 
 const subDivideParams = {
