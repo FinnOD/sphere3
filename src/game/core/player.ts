@@ -1,186 +1,235 @@
 import * as THREE from 'three';
+import { sphereDebug } from './debug';
+import { getDisplacement } from '../extras/SphereNoise';
 
 export class PlayerPositionController {
-  private camera: THREE.PerspectiveCamera;
-  private position: THREE.Vector3;
-  private speed: number = 20;
-  private sphereRadius: number = 3000;
-  private playerHeight: number = -20;
-  
-  // Movement state
-  private keys = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    run: false
-  };
+    private camera: THREE.PerspectiveCamera;
+    private position: THREE.Vector3;
+    private speed: number = 20;
+    private sphereRadius: number = 3000;
+    private playerHeight: number = 2;
 
-  // Mouse look
-  private yaw: number = 0;
-  private pitch: number = 0;
-  private mouseSensitivity: number = 0.002;
+    // Spherical camera system - simplified
+    private cameraYaw: number = 0;
+    private cameraPitch: number = 0;
+    private mouseSensitivity: number = 0.002;
 
-  constructor(camera: THREE.PerspectiveCamera, initialPosition: THREE.Vector3) {
-    this.camera = camera;
-    this.position = initialPosition.clone().normalize().multiplyScalar(this.sphereRadius);
-    
-    this.setupKeyboardListeners();
-    this.setupMouseListeners();
-    this.updateCameraPosition();
-  }
+    private _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    private localRot = new THREE.Quaternion().setFromEuler(this._euler);
+    private _PI_2 = Math.PI / 2;
 
-  private setupKeyboardListeners() {
-    const onKeyDown = (event: KeyboardEvent) => {
-      switch (event.code) {
-        case 'KeyW':
-          this.keys.forward = true;
-          break;
-        case 'KeyS':
-          this.keys.backward = true;
-          break;
-        case 'KeyA':
-          this.keys.left = true;
-          break;
-        case 'KeyD':
-          this.keys.right = true;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.keys.run = true;
-          break;
-      }
+    // Movement state
+    private keys = {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        run: false
     };
 
-    const onKeyUp = (event: KeyboardEvent) => {
-      switch (event.code) {
-        case 'KeyW':
-          this.keys.forward = false;
-          break;
-        case 'KeyS':
-          this.keys.backward = false;
-          break;
-        case 'KeyA':
-          this.keys.left = false;
-          break;
-        case 'KeyD':
-          this.keys.right = false;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.keys.run = false;
-          break;
-      }
-    };
+    constructor(camera: THREE.PerspectiveCamera, initialPosition: THREE.Vector3) {
+        this.camera = camera;
 
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
-  }
+        // Position player INSIDE the sphere
+        this.position = initialPosition
+            .clone()
+            .normalize()
+            .multiplyScalar(this.sphereRadius - this.playerHeight);
 
-  private setupMouseListeners() {
-    let isLocked = false;
+        console.log('Initial position:', this.position);
+        console.log('Initial distance from center:', this.position.length());
+        console.log('Expected distance:', this.sphereRadius - this.playerHeight);
 
-    const onMouseMove = (event: MouseEvent) => {
-      if (!isLocked) return;
+        // Initialize camera angles
+        this.cameraYaw = 0;
+        this.cameraPitch = 0;
 
-      this.yaw -= event.movementX * this.mouseSensitivity;
-      this.pitch -= event.movementY * this.mouseSensitivity;
-      
-      // Clamp pitch to prevent flipping
-      this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
-      
-      this.updateCameraRotation();
-    };
-
-    const onPointerlockChange = () => {
-      isLocked = document.pointerLockElement === document.body;
-    };
-
-    document.addEventListener('mousemove', onMouseMove, false);
-    document.addEventListener('pointerlockchange', onPointerlockChange, false);
-  }
-
-  private updateCameraPosition() {
-    // Place camera at player position + height offset
-    const surfaceNormal = this.position.clone().normalize();
-    const cameraPosition = this.position.clone().add(
-      surfaceNormal.clone().multiplyScalar(this.playerHeight)
-    );
-    
-    this.camera.position.copy(cameraPosition);
-    this.updateCameraRotation();
-  }
-
-  private updateCameraRotation() {
-    // Simple yaw and pitch rotation - no sphere orientation for now
-    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
-  }
-
-  public update(delta: number) {
-    const moveSpeed = this.speed * (this.keys.run ? 20 : 1) * delta;
-    
-    if (!this.keys.forward && !this.keys.backward && !this.keys.left && !this.keys.right) {
-      return; // No movement
+        this.setupKeyboardListeners();
+        this.setupMouseListeners();
+        this.updateCameraTransform();
     }
 
-    // Create movement vector in camera space
-    const movement = new THREE.Vector3();
-    if (this.keys.forward) movement.z -= moveSpeed;
-    if (this.keys.backward) movement.z += moveSpeed;
-    if (this.keys.left) movement.x -= moveSpeed;
-    if (this.keys.right) movement.x += moveSpeed;
+    private setupKeyboardListeners() {
+        const onKeyDown = (event: KeyboardEvent) => {
+            switch (event.code) {
+                case 'KeyW':
+                    this.keys.forward = true;
+                    break;
+                case 'KeyS':
+                    this.keys.backward = true;
+                    break;
+                case 'KeyA':
+                    this.keys.left = true;
+                    break;
+                case 'KeyD':
+                    this.keys.right = true;
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    this.keys.run = true;
+                    break;
+            }
+        };
 
-    // Convert movement to world space based on camera yaw only (ignore pitch for movement)
-    const yawQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-    movement.applyQuaternion(yawQuaternion);
+        const onKeyUp = (event: KeyboardEvent) => {
+            switch (event.code) {
+                case 'KeyW':
+                    this.keys.forward = false;
+                    break;
+                case 'KeyS':
+                    this.keys.backward = false;
+                    break;
+                case 'KeyA':
+                    this.keys.left = false;
+                    break;
+                case 'KeyD':
+                    this.keys.right = false;
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    this.keys.run = false;
+                    break;
+            }
+        };
 
-    // Project movement onto sphere surface (tangent to current position)
-    const currentNormal = this.position.clone().normalize();
-    const tangentMovement = movement.clone().projectOnPlane(currentNormal);
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+    }
 
-    // Move position
-    this.position.add(tangentMovement);
-    
-    // Re-normalize to stay on sphere surface (no terrain displacement for now)
-    this.position.normalize().multiplyScalar(this.sphereRadius);
-    
-    this.updateCameraPosition();
-  }
+    private setupMouseListeners() {
+        let isLocked = false;
 
-  public lock() {
-    document.body.requestPointerLock();
-  }
+        const onMouseMove = (event: MouseEvent) => {
+            if (!isLocked) return;
 
-  public unlock() {
-    document.exitPointerLock();
-  }
+            // Simple mouse input: horizontal movement = yaw, vertical movement = pitch
+            // const yaw = event.movementX * this.mouseSensitivity;
+            // const pitch = event.movementY * this.mouseSensitivity;
 
-  public get isLocked() {
-    return document.pointerLockElement === document.body;
-  }
+            this._euler.setFromQuaternion(this.localRot);
+            let minPolarAngle = 0;
+            let maxPolarAngle = Math.PI;
+            // let _euler = new Euler(0, 0, 0, 'YXZ');
 
-  public getPosition(): THREE.Vector3 {
-    return this.position.clone();
-  }
+            this._euler.y -= event.movementX * this.mouseSensitivity;
+            this._euler.x -= event.movementY * this.mouseSensitivity;
 
-  public getYawObject(): THREE.Object3D {
-    // Return a dummy object for compatibility - we're positioning the camera directly now
-    const dummy = new THREE.Object3D();
-    dummy.position.copy(this.position);
-    return dummy;
-  }
+            this._euler.x = Math.max(
+                this._PI_2 - maxPolarAngle,
+                Math.min(this._PI_2 - minPolarAngle, this._euler.x)
+            );
+            this.localRot.setFromEuler(this._euler);
 
-  public onLock(callback: () => void) {
-    const onPointerlockChange = () => {
-      if (this.isLocked) callback();
-    };
-    document.addEventListener('pointerlockchange', onPointerlockChange, false);
-  }
+            // this.applyCameraRotation(yaw, pitch);
+            this.updateCameraTransform();
+        };
 
-  public onUnlock(callback: () => void) {
-    const onPointerlockChange = () => {
-      if (!this.isLocked) callback();
-    };
-    document.addEventListener('pointerlockchange', onPointerlockChange, false);
-  }
+        const onPointerlockChange = () => {
+            isLocked = document.pointerLockElement === document.body;
+        };
+
+        document.addEventListener('mousemove', onMouseMove, false);
+        document.addEventListener('pointerlockchange', onPointerlockChange, false);
+    }
+
+    private applyCameraRotation(yawDelta: number, pitchDelta: number) {
+        // Simple angle-based approach
+        this.cameraYaw += yawDelta;
+        this.cameraPitch += pitchDelta;
+    }
+
+    private updateCameraTransform() {
+        // Update camera position
+        this.camera.position.copy(this.position);
+        console.log('Camera position:', this.camera.position);
+
+        const norm = this.camera.position.clone().normalize();
+
+        const globalAngle = new THREE.Quaternion();
+        const downVector = new THREE.Vector3(0, -1, 0);
+        globalAngle.setFromUnitVectors(downVector, norm);
+        this.camera.quaternion.copy(globalAngle);
+
+        // Then account for rotation with mouse
+        // Localrot is set in pointerlock controls
+        this.camera.quaternion.multiply(this.localRot);
+    }
+
+    public update(delta: number) {
+        const moveSpeed = this.speed * (this.keys.run ? 60 : 1) * delta;
+
+        // Build movement vector in camera space
+        const tangentVelocity = new THREE.Vector3();
+        if (this.keys.forward) tangentVelocity.z -= moveSpeed;
+        if (this.keys.backward) tangentVelocity.z += moveSpeed;
+        if (this.keys.left) tangentVelocity.x -= moveSpeed; // Fixed: was -=
+        if (this.keys.right) tangentVelocity.x += moveSpeed; // Fixed: was +=
+
+        if (tangentVelocity.length() <= 0) return;
+        tangentVelocity.applyQuaternion(this.camera.quaternion);
+        this.position = this.position.add(tangentVelocity);
+
+        // Calculate displaced surface position EXACTLY like GenerateWorldGeometry
+        let normal = this.position.clone().normalize();
+        let playerOnSphere = normal.clone().multiplyScalar(3000);
+
+        // Get displacement exactly like the world generation
+        let noise = getDisplacement(playerOnSphere.x, playerOnSphere.y, playerOnSphere.z);
+        let displacementVector = normal.clone().multiplyScalar(-noise);
+
+        // Apply displacement to sphere surface
+        let displacedSurfacePos = playerOnSphere.clone().add(displacementVector);
+
+        // Position player above the displaced surface
+        let playerHeightOffset = normal.clone().multiplyScalar(-this.playerHeight);
+        this.position = displacedSurfacePos.add(playerHeightOffset);
+
+        console.log(
+            'Noise:',
+            noise,
+            'Surface pos:',
+            displacedSurfacePos.length(),
+            'Final pos:',
+            this.position.length()
+        );
+
+        this.updateCameraTransform();
+        // Debug information
+
+        sphereDebug.update({
+            playerPos: this.position,
+            distanceFromCenter: this.position.length()
+            // displacement: noise
+        });
+    }
+
+    public lock() {
+        document.body.requestPointerLock();
+    }
+
+    public unlock() {
+        document.exitPointerLock();
+    }
+
+    public get isLocked() {
+        return document.pointerLockElement === document.body;
+    }
+
+    public getPosition(): THREE.Vector3 {
+        return this.position.clone();
+    }
+
+    public onLock(callback: () => void) {
+        const onPointerlockChange = () => {
+            if (this.isLocked) callback();
+        };
+        document.addEventListener('pointerlockchange', onPointerlockChange, false);
+    }
+
+    public onUnlock(callback: () => void) {
+        const onPointerlockChange = () => {
+            if (!this.isLocked) callback();
+        };
+        document.addEventListener('pointerlockchange', onPointerlockChange, false);
+    }
 }
