@@ -21,7 +21,7 @@ export function startGame() {
 
     const scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-    camera.position.set(0, 3010, 0);
+    // camera.position.set(0, 3010, 0);
 
     // Add some lighting for the world
     const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
@@ -41,7 +41,7 @@ export function startGame() {
     window.addEventListener('resize', handleResize);
 
     // Initialize player position controller first
-    const initialPosition = new THREE.Vector3(0, 2998, 0); // Inside the sphere (radius 3000 - playerHeight 2)
+    const initialPosition = new THREE.Vector3(0, -2998, 0); // Inside the sphere (radius 3000 - playerHeight 2)
     player = new PlayerPositionController(camera, initialPosition);
 
     // Initialize controls (simplified now)
