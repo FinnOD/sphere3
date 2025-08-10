@@ -47,10 +47,8 @@ export function startGame() {
     // Initialize controls (simplified now)
     controls = new FirstPersonControls(camera, document.body);
 
-    // Don't add anything to scene - player manages camera directly
-
     // Create the world mesh system
-    world = new WorldMesh(scene, 3);
+    world = new WorldMesh(scene, 3, initialPosition, true);
 
     const clock = new THREE.Clock();
 

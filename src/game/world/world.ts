@@ -5,8 +5,8 @@ import { getDisplacement } from './SphereNoise.js';
 import { ChunkManager, FarawayChunkManager } from './ChunkManagers';
 
 const DISTANCE_TO_DETAIL = {
-    0: 8, // Player's current chunk - highest detail
-    1: 8 // Adjacent chunks - high detail
+    0: 7, // Player's current chunk - highest detail
+    1: 7 // Adjacent chunks - high detail
 } as const;
 
 const CHUNK_RENDER_DISTANCE = Math.max(...Object.keys(DISTANCE_TO_DETAIL).map(Number));
@@ -28,8 +28,12 @@ export class WorldMesh {
     private chunkManager: ChunkManager;
     private farawayChunkManager: FarawayChunkManager;
 
-    constructor(scene: THREE.Scene, defaultDetail: number = 3, showDebugMarkers: boolean = false) {
-        let playerPosition = new THREE.Vector3(0, -2998, 0); // Actually get it for construction
+    constructor(
+        scene: THREE.Scene,
+        defaultDetail: number = 3,
+        playerPosition: THREE.Vector3,
+        showDebugMarkers: boolean = false
+    ) {
         this.scene = scene;
         this.defaultDetail = defaultDetail;
 
@@ -43,7 +47,8 @@ export class WorldMesh {
             defaultDetail
         );
 
-        this.chunkIndex = this.closestChunk(playerPosition);
+        // Set initial chunk index to -1 to force first update to run
+        this.chunkIndex = -1; // Invalid index to ensure first update loads chunks
         this.neighboursByIndex = this.getNeighboursByIndex(this.hexasphere);
         this.distanceMatrix = this.createDistanceMatrix(this.neighboursByIndex);
         this.maxDistance = this.distanceMatrix.reduce((max, row) => Math.max(max, ...row), 0);
@@ -53,7 +58,17 @@ export class WorldMesh {
             this.addDebugMarkers();
         }
 
-        this.update(playerPosition);
+        // Add sun
+        const sunMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(3, 20, 20),
+            new THREE.MeshPhongMaterial({ color: 'pink', wireframe: false })
+        );
+        sunMesh.position.set(0, 0, 0);
+        sunMesh.scale.set(20, 20, 20);
+        this.scene.add(sunMesh);
+
+        // Force initial chunk loading with the force flag to ensure chunks load on first start
+        this.update(playerPosition, true);
     }
 
     private addDebugMarkers(): void {
@@ -72,9 +87,9 @@ export class WorldMesh {
         }
     }
 
-    public update(playerPosition: THREE.Vector3) {
+    public update(playerPosition: THREE.Vector3, forceUpdate: boolean = false) {
         const newChunkIndex = this.closestChunk(playerPosition);
-        if (newChunkIndex === this.chunkIndex) return;
+        if (newChunkIndex === this.chunkIndex && !forceUpdate) return;
 
         this.chunkIndex = newChunkIndex;
 
@@ -122,6 +137,22 @@ export class WorldMesh {
             nearby: this.chunkManager.getLoadedChunkCount(),
             faraway: this.farawayChunkManager.getLoadedCount(),
             total: this.scene.children.length
+        };
+    }
+
+    public clearCache(): void {
+        this.chunkManager.clearCache();
+    }
+
+    public getDetailedStats() {
+        const cacheStats = this.chunkManager.getCacheStats();
+        return {
+            chunks: {
+                nearby: this.chunkManager.getLoadedChunkCount(),
+                faraway: this.farawayChunkManager.getLoadedCount(),
+                total: this.scene.children.length
+            },
+            cache: cacheStats
         };
     }
 

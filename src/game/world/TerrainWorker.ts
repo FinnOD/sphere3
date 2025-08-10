@@ -15,7 +15,7 @@ const subDivideParams = {
 };
 
 function makeBufferGeometry(serializedGeometry: SerializedBufferGeometry, subdivideDetail: number) {
-    let originalGeometry = deserializeBufferGeometry(serializedGeometry);
+    const originalGeometry = deserializeBufferGeometry(serializedGeometry);
 
     let subdivided = LoopSubdivision.modify(originalGeometry, subdivideDetail, subDivideParams);
     subdivided = noisifyBuffer(subdivided);
@@ -25,7 +25,7 @@ function makeBufferGeometry(serializedGeometry: SerializedBufferGeometry, subdiv
 }
 
 onmessage = function (e) {
-    let [serializedGeometry, detail]: [SerializedBufferGeometry, number] = e.data;
+    const [serializedGeometry, detail]: [SerializedBufferGeometry, number] = e.data;
 
     const detailedGeometry = makeBufferGeometry(serializedGeometry, detail);
     const detailedSerializedGeometry = serializeBufferGeometry(detailedGeometry);

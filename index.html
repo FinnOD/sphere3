@@ -1,48 +1,48 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sphere3</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        overflow: hidden;
-        font-family: sans-serif;
-      }
-      
-      #game-canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        display: block;
-      }
-      
-      #ui {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none;
-      }
-      
-      #ui > * {
-        pointer-events: auto;
-      }
-    </style>
-  </head>
-  <body>
-    <canvas id="game-canvas"></canvas>
-    <div id="ui"></div>
-    <script type="module" src="/src/index.ts"></script>
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sphere3</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                overflow: hidden;
+                font-family: sans-serif;
+            }
+
+            #game-canvas {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                display: block;
+            }
+
+            #ui {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                pointer-events: none;
+            }
+
+            #ui > * {
+                pointer-events: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="game-canvas"></canvas>
+        <div id="ui"></div>
+        <script type="module" src="/src/index.ts"></script>
+    </body>
 </html>

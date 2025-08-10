@@ -1,7 +1,96 @@
 import * as THREE from 'three';
 import { Chunk } from './Chunk';
 
-const DEFAULT_COLOR = new THREE.Color(0x66aa44);
+// Geometry cache for chunks
+interface CachedGeometry {
+    geometry: THREE.BufferGeometry;
+    timestamp: number;
+}
+
+class GeometryCache {
+    private cache = new Map<string, CachedGeometry>();
+    private maxAge = 5 * 60 * 1000; // 5 minutes
+    private maxEntries = 100; // Maximum cache entries
+
+    private getCacheKey(chunkId: number, detail: number): string {
+        return `${chunkId}-${detail}`;
+    }
+
+    get(chunkId: number, detail: number): THREE.BufferGeometry | null {
+        const key = this.getCacheKey(chunkId, detail);
+        const cached = this.cache.get(key);
+
+        if (!cached) return null;
+
+        // Check if cache entry is still valid
+        if (Date.now() - cached.timestamp > this.maxAge) {
+            this.cache.delete(key);
+            return null;
+        }
+
+        console.log(`Cache hit for chunk ${chunkId} detail ${detail}`);
+        return cached.geometry.clone(); // Clone to avoid mutations
+    }
+
+    set(chunkId: number, detail: number, geometry: THREE.BufferGeometry): void {
+        const key = this.getCacheKey(chunkId, detail);
+
+        // Clean up old entries if cache is full
+        if (this.cache.size >= this.maxEntries) {
+            this.cleanupOldEntries();
+        }
+
+        this.cache.set(key, {
+            geometry: geometry.clone(), // Clone to avoid mutations
+            timestamp: Date.now()
+        });
+
+        console.log(`Cached geometry for chunk ${chunkId} detail ${detail}`);
+    }
+
+    private cleanupOldEntries(): void {
+        const now = Date.now();
+        const toDelete: string[] = [];
+
+        for (const [key, cached] of this.cache.entries()) {
+            if (now - cached.timestamp > this.maxAge) {
+                toDelete.push(key);
+            }
+        }
+
+        // If no old entries, remove oldest 20%
+        if (toDelete.length === 0) {
+            const entries = Array.from(this.cache.entries());
+            entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+            const removeCount = Math.floor(this.maxEntries * 0.2);
+            toDelete.push(...entries.slice(0, removeCount).map((e) => e[0]));
+        }
+
+        for (const key of toDelete) {
+            this.cache.delete(key);
+        }
+
+        console.log(`Cleaned up ${toDelete.length} cache entries`);
+    }
+
+    clear(): void {
+        this.cache.clear();
+    }
+
+    getStats(): { size: number; maxEntries: number } {
+        return {
+            size: this.cache.size,
+            maxEntries: this.maxEntries
+        };
+    }
+}
+
+// Global cache instance
+// Make cache available globally for Chunk class
+const geometryCache = new GeometryCache();
+(window as any).geometryCache = geometryCache;
+
+const DEFAULT_COLOR = new THREE.Color(0x6644aa);
 const DEFAULT_MATERIAL = new THREE.MeshPhongMaterial({
     color: DEFAULT_COLOR,
     side: THREE.DoubleSide,
@@ -128,6 +217,15 @@ export class ChunkManager {
 
     getLoadedChunkCount(): number {
         return this.chunks.size;
+    }
+
+    public clearCache(): void {
+        geometryCache.clear();
+        console.log('Geometry cache cleared');
+    }
+
+    public getCacheStats() {
+        return geometryCache.getStats();
     }
 }
 
