@@ -26,10 +26,7 @@ export function noisifyBuffer(geometry: BufferGeometry): BufferGeometry {
         );
         position.setLength(3000);
 
-        // Disable noise for now - just use sphere surface
         noise = getDisplacement(position.x, position.y, position.z);
-        // noise = 0;
-
         let normal = position.clone().normalize().multiplyScalar(-noise);
         position.add(normal);
 
@@ -52,9 +49,7 @@ export function generateWorldGeometry(
     let midPoints: Array<Vector3> = [];
 
     let vec = new Vector3();
-    for (let i = 0; i < hexasphere.tiles.length; i++) {
-        let t = hexasphere.tiles[i];
-
+    for (const t of hexasphere.tiles) {
         let vertices = [];
         let indices = [];
         vec.set(

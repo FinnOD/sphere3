@@ -12,7 +12,7 @@ const KEYS = {
 } as const;
 
 export class PlayerPositionController {
-    private static readonly SPEED = 20;
+    private static readonly SPEED = 2;
     private static readonly SPHERE_RADIUS = 3000;
     private static readonly PLAYER_HEIGHT = 2;
     private static readonly MOUSE_SENSITIVITY = 0.002;

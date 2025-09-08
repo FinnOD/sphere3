@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Chunk } from './Chunk';
+import { GroundMaterial } from './GroundMaterial';
 
 // Geometry cache for chunks
 interface CachedGeometry {
@@ -90,13 +91,6 @@ class GeometryCache {
 const geometryCache = new GeometryCache();
 (window as any).geometryCache = geometryCache;
 
-const DEFAULT_COLOR = new THREE.Color(0x6644aa);
-const DEFAULT_MATERIAL = new THREE.MeshPhongMaterial({
-    color: DEFAULT_COLOR,
-    side: THREE.DoubleSide,
-    wireframe: false
-});
-
 enum ChunkState {
     Unloaded,
     Loading,
@@ -151,8 +145,10 @@ export class ChunkManager {
                 record.lowDetailMesh = undefined;
             }
 
-            record.mesh = new THREE.Mesh(geom, DEFAULT_MATERIAL);
+            record.mesh = new THREE.Mesh(geom, GroundMaterial);
             record.mesh.name = `nearby-${id}`;
+            record.mesh.castShadow = true;
+            record.mesh.receiveShadow = true;
             this.scene.add(record.mesh);
             record.state = ChunkState.Visible;
         });
@@ -285,14 +281,9 @@ export class FarawayChunkManager {
         const distance = distanceMatrix[currentChunkIndex][chunkIndex];
         const hue = (2 * distance) / maxDistance;
 
-        const mesh = new THREE.Mesh(
-            geometry,
-            new THREE.MeshPhongMaterial({
-                color: new THREE.Color().setHSL(hue, 0.9, 0.7),
-                wireframe: false,
-                side: THREE.DoubleSide
-            })
-        );
+        const mesh = new THREE.Mesh(geometry, GroundMaterial);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
 
         mesh.name = `faraway-${chunkIndex}`;
         this.scene.add(mesh);

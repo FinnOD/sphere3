@@ -1,4 +1,7 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
+import * as TSL from 'three/tsl';
+
+// import { TSL } from 'three';
 import Hexasphere from './Hexasphere.js';
 import { generateWorldGeometry } from './GenerateWorldGeometry';
 import { getDisplacement } from './SphereNoise.js';
@@ -7,6 +10,7 @@ import { ChunkManager, FarawayChunkManager } from './ChunkManagers';
 const DISTANCE_TO_DETAIL = {
     0: 7, // Player's current chunk - highest detail
     1: 7 // Adjacent chunks - high detail
+    // 2: 7 // Further chunks - medium detail
 } as const;
 
 const CHUNK_RENDER_DISTANCE = Math.max(...Object.keys(DISTANCE_TO_DETAIL).map(Number));
@@ -58,14 +62,14 @@ export class WorldMesh {
             this.addDebugMarkers();
         }
 
-        // Add sun
-        const sunMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(3, 20, 20),
-            new THREE.MeshPhongMaterial({ color: 'pink', wireframe: false })
-        );
-        sunMesh.position.set(0, 0, 0);
-        sunMesh.scale.set(20, 20, 20);
-        this.scene.add(sunMesh);
+        //TEST
+        const nodeMat = new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0xff0066) });
+        nodeMat.colorNode = TSL.reflectView.mul(2);
+        const testThing = new THREE.Mesh(new THREE.TorusKnotGeometry(100, 30, 1000, 100), nodeMat);
+        testThing.position.set(0, -3000, 0);
+        testThing.castShadow = true;
+        testThing.receiveShadow = true;
+        this.scene.add(testThing);
 
         // Force initial chunk loading with the force flag to ensure chunks load on first start
         this.update(playerPosition, true);
@@ -83,6 +87,8 @@ export class WorldMesh {
             const marker = new THREE.Mesh(markerGeometry, markerMaterial);
             marker.position.copy(mpDisp);
             marker.name = `debug-marker-${i}`;
+            marker.castShadow = true;
+            marker.receiveShadow = true;
             this.scene.add(marker);
         }
     }

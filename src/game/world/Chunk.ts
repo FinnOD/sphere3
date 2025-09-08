@@ -3,13 +3,9 @@ import * as THREE from 'three';
 import { LoopSubdivision } from 'three-subdivide';
 import Worker from './TerrainWorker?worker&module';
 import { deserializeBufferGeometry, serializeBufferGeometry } from './SerializeBufferGeometry';
+import { GroundMaterial } from './GroundMaterial';
 
 const DEFAULT_DETAIL = 4;
-const DEFAULT_CHUNK_MATERIAL = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(0x66aa44),
-    side: THREE.DoubleSide,
-    wireframe: false
-});
 const SUBDIVIDE_PARAMS = {
     split: false, // optional, default: true
     uvSmooth: false, // optional, default: false
@@ -42,13 +38,15 @@ export class Chunk {
 
         // Create low detail geometry and mesh
         this.subdividedGeomLow = this.makeBufferGeometry(tile, DEFAULT_DETAIL);
-        const materialClone = DEFAULT_CHUNK_MATERIAL.clone();
-        materialClone.color.setHSL(detail / 10, 0.9, 0.7);
-        this.lowDetailMesh = new THREE.Mesh(this.subdividedGeomLow, materialClone);
+        // const materialClone = DEFAULT_CHUNK_MATERIAL.clone();
+        // materialClone.color.setHSL(detail / 10, 0.9, 0.7);
+        this.lowDetailMesh = new THREE.Mesh(this.subdividedGeomLow, GroundMaterial);
+        this.lowDetailMesh.castShadow = true;
+        this.lowDetailMesh.receiveShadow = true;
         this.lowDetailMesh.name = `low-${chunkIndex}`;
 
         // Start worker for high detail geometry
-        console.log('Starting worker for chunk', chunkIndex, 'with detail', detail);
+        // console.log('Starting worker for chunk', chunkIndex, 'with detail', detail);
         this.geometryPromise = this.runWorker(tile, detail);
     }
 
@@ -77,16 +75,16 @@ export class Chunk {
             // Check cache first
             const cachedGeometry = (window as any).geometryCache?.get(this.chunkIndex, detail);
             if (cachedGeometry) {
-                console.log(`Using cached geometry for chunk ${this.chunkIndex} detail ${detail}`);
+                // console.log(`Using cached geometry for chunk ${this.chunkIndex} detail ${detail}`);
                 resolve(cachedGeometry);
                 return;
             }
 
-            console.log(`Starting worker for chunk ${this.chunkIndex} with detail ${detail}`);
+            // console.log(`Starting worker for chunk ${this.chunkIndex} with detail ${detail}`);
             this.worker = new Worker();
 
             this.worker!.onmessage = (e) => {
-                console.log(`Worker completed for chunk ${this.chunkIndex}`);
+                // console.log(`Worker completed for chunk ${this.chunkIndex}`);
                 try {
                     const detailedSerializedGeometry = e.data;
                     const detailedGeometry = deserializeBufferGeometry(detailedSerializedGeometry);

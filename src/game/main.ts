@@ -24,12 +24,45 @@ export function startGame() {
     // camera.position.set(0, 3010, 0);
 
     // Add some lighting for the world
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(1000, 2000, 1000);
-    scene.add(directionalLight);
+    // const sunLight = new THREE.SpotLight(0xffffff, 1_000_000, 2000, Math.PI / 4, 0.5);
+    // sunLight.position.set(0, -2700, 300);
+    // sunLight.target.position.set(-100, -3000, -200);
+    // sunLight.castShadow = true;
+    // sunLight.shadow.autoUpdate = true;
+    // sunLight.shadow.bias = -0.001;
+    // sunLight.shadow.mapSize.width = 2 * 2048;
+    // sunLight.shadow.mapSize.height = 2 * 2048;
+    // sunLight.shadow.camera.near = 10;
+    // sunLight.shadow.camera.far = 2000;
+    // scene.add(sunLight);
+    // scene.add(sunLight.target);
+
+    const lighting = new THREE.PointLight(0xffffff, 100_000_00);
+    lighting.castShadow = true;
+    scene.add(lighting);
+    // lighting.shadow.camera.near = 500;
+    // lighting.shadow.camera.far = 5000;
+    // lighting.shadow.mapSize.width = 2048;
+    // lighting.shadow.mapSize.height = 2048;
+    // lighting.shadow.bias = -0.001;
+
+    // Add sun
+    const sunMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(3, 20, 20),
+        new THREE.MeshPhongMaterial({
+            color: 'pink',
+            wireframe: false,
+            emissive: new THREE.Color(0xffaa77)
+        })
+    );
+    sunMesh.position.copy(lighting.position);
+    sunMesh.scale.set(20, 20, 20);
+    sunMesh.castShadow = false;
+    sunMesh.receiveShadow = false;
+    scene.add(sunMesh);
 
     // Handle window resize
     const handleResize = () => {
@@ -74,7 +107,7 @@ export function startGame() {
         //     });
         // }
 
-        renderer.render(scene, camera);
+        renderer.renderAsync(scene, camera);
     }
     animate();
 }
