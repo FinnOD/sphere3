@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import * as TSL from 'three/tsl';
 
 // import { TSL } from 'three';
-import Hexasphere from './Hexasphere.js';
+import { Hexasphere } from 'hexasphere';
 import { generateWorldGeometry } from './GenerateWorldGeometry';
 import { getDisplacement } from './SphereNoise.js';
 import { ChunkManager, FarawayChunkManager } from './ChunkManagers';
@@ -103,8 +103,6 @@ export class WorldMesh {
         const nearbyIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, true);
         const farawayIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, false);
 
-        console.log(`Chunks - Nearby: ${nearbyIndices.length}, Faraway: ${farawayIndices.length}`);
-
         // Update chunks using managers
         this.chunkManager.updateChunks(
             nearbyIndices,
@@ -138,36 +136,15 @@ export class WorldMesh {
         );
     }
 
-    public getChunkStats(): { nearby: number; faraway: number; total: number } {
-        return {
-            nearby: this.chunkManager.getLoadedChunkCount(),
-            faraway: this.farawayChunkManager.getLoadedCount(),
-            total: this.scene.children.length
-        };
-    }
-
-    public clearCache(): void {
-        this.chunkManager.clearCache();
-    }
-
-    public getDetailedStats() {
-        const cacheStats = this.chunkManager.getCacheStats();
-        return {
-            chunks: {
-                nearby: this.chunkManager.getLoadedChunkCount(),
-                faraway: this.farawayChunkManager.getLoadedCount(),
-                total: this.scene.children.length
-            },
-            cache: cacheStats
-        };
-    }
-
     private getNeighboursByIndex(hex: Hexasphere): number[][] {
-        let neighbourIndexes: number[][] = [];
-        const keys = Object.keys(hex.tileLookup);
+        // @ts-ignore TS2341 - Property 'tileLookup' is private in Hexasphere
+        const tileLookup: Record<string, Hexasphere['tiles'][number]> = hex.tileLookup;
 
-        for (const tileId in hex.tileLookup) {
-            const neighbours = (hex.tileLookup as any)[tileId];
+        let neighbourIndexes: number[][] = [];
+        const keys = Object.keys(tileLookup);
+
+        for (const tileId in tileLookup) {
+            const neighbours = tileLookup[tileId];
             const currentIndexes = [];
 
             for (const neighborId of neighbours.neighborIds) {

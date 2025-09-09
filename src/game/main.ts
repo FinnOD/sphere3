@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { createRenderer } from './core/renderer';
 import { FirstPersonControls } from './core/controls';
 import { WorldMesh } from './world/world';
@@ -9,7 +9,7 @@ let gameRunning = false;
 let controls: FirstPersonControls;
 let player: PlayerPositionController;
 let camera: THREE.PerspectiveCamera;
-let renderer: any;
+let renderer: THREE.WebGPURenderer;
 let world: WorldMesh;
 
 export function startGame() {

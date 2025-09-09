@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
-import type Hexasphere from '../world/Hexasphere';
+import type { Hexasphere } from 'hexasphere';
 import { LoopSubdivision } from 'three-subdivide';
 import { getDisplacement } from '../world/SphereNoise';
 // @ts-ignore
@@ -52,20 +52,12 @@ export function generateWorldGeometry(
     for (const t of hexasphere.tiles) {
         let vertices = [];
         let indices = [];
-        vec.set(
-            parseFloat(t.centerPoint.x),
-            parseFloat(t.centerPoint.y),
-            parseFloat(t.centerPoint.z)
-        )
-            .normalize()
-            .multiplyScalar(3000);
+        vec.set(t.centerPoint.x, t.centerPoint.y, t.centerPoint.z).normalize().multiplyScalar(3000);
         vertices.push(vec.x, vec.y, vec.z);
         midPoints.push(vec.clone());
         for (let j = 0; j < t.boundary.length; j++) {
             let bp = t.boundary[j];
-            vec.set(parseFloat(bp.x), parseFloat(bp.y), parseFloat(bp.z))
-                .normalize()
-                .multiplyScalar(3000);
+            vec.set(bp.x, bp.y, bp.z).normalize().multiplyScalar(3000);
             vertices.push(vec.x, vec.y, vec.z);
         }
 
