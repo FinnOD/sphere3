@@ -31,6 +31,7 @@ export class HollowSphereMaterial extends THREE.MeshStandardNodeMaterial {
     private brown;
     private gray;
     private sunDirection;
+    private altColor;
 
     constructor(params: THREE.MeshStandardNodeMaterialParameters = {}) {
         super(params);
@@ -43,6 +44,8 @@ export class HollowSphereMaterial extends THREE.MeshStandardNodeMaterial {
         this.moonColor = uniform(new THREE.Color(0.4, 0.6, 1.0).multiplyScalar(0.1));
 
         this.sunDirection = uniform(new THREE.Vector3(0, -1, 0));
+        this.altColor = uniform(new THREE.Color(0, 0, 0));
+        if (params.color) this.altColor = uniform(params.color);
 
         this.side = THREE.BackSide;
         this.setupCustomLighting();
@@ -77,7 +80,13 @@ export class HollowSphereMaterial extends THREE.MeshStandardNodeMaterial {
         const height = float(3000).sub(length(positionWorld));
         const sandy = clamp(float(0.5).sub(height.mul(height)), 0, 1);
         outputColor = mix(outputColor, vec3(0.6, 0.5, 0.04), sandy);
-        this.colorNode = outputColor.mul(customLighting.add(0.05)); // 0.1 = ambient
+        let a = outputColor.mul(customLighting.add(0.05)); // 0.1 = ambient
+        this.colorNode = mix(a, this.altColor, float(1));
+    }
+
+    public setColor(c: THREE.Color) {
+        this.altColor.setX(uniform(c.r));
     }
 }
-export const GroundMaterial = new HollowSphereMaterial();
+// export const GroundMaterial = new HollowSphereMaterial();
+export const GroundMaterial = HollowSphereMaterial;

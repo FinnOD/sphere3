@@ -81,7 +81,7 @@ export function startGame() {
     controls = new FirstPersonControls(camera, document.body);
 
     // Create the world mesh system
-    world = new WorldMesh(scene, 3, initialPosition, true);
+    world = new WorldMesh(scene, initialPosition);
 
     const clock = new THREE.Clock();
 
