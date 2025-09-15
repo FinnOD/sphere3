@@ -25,10 +25,12 @@ export class Chunk {
     private worker: Worker | null = null;
 
     private trees: THREE.Mesh[] = [];
+    private nearIndicesSet: Set<number>;
 
-    constructor(id: number, scene: THREE.Scene) {
+    constructor(id: number, scene: THREE.Scene, nearIndicesSet: Set<number>) {
         this.id = id;
         this.scene = scene;
+        this.nearIndicesSet = nearIndicesSet;
 
         this.setStateAsync(ChunkState.Far);
 
@@ -43,12 +45,12 @@ export class Chunk {
         marker.name = `low-${this.id}`;
         marker.castShadow = true;
         marker.receiveShadow = true;
-        this.scene.add(marker);
+        // this.scene.add(marker);
 
         this.trees = [];
-        for (let i = 0; i <= Chunk.pureTiles[this.id].attributes.position.count; i += 3) {
+        for (let i = 0; i < Chunk.pureTiles[this.id].attributes.position.count; i++) {
             const tree = new THREE.Mesh(
-                new THREE.ConeGeometry(10, 50, 8),
+                new THREE.ConeGeometry(2.5, 6, 8),
                 new THREE.MeshStandardMaterial({ color: 'green' })
             );
             const x = Chunk.pureTiles[this.id].attributes.position.getX(i);
@@ -59,6 +61,7 @@ export class Chunk {
             const noise = getDisplacement(xyz.x, xyz.y, xyz.z);
             let normal = xyz.clone().normalize().multiplyScalar(-noise);
             xyz.add(normal);
+            xyz.add(xyz.clone().normalize().multiplyScalar(-3.5)); // Half height of cone + small offset
 
             tree.position.copy(xyz);
             // tree.position.add(chunk.getPosition());
@@ -70,16 +73,27 @@ export class Chunk {
     }
 
     public async setStateAsync(newState: ChunkState) {
-        if (this.isTransitioning || this.state === newState) return;
-        if (newState === ChunkState.Near)
-            console.log('Chunk', this.id, 'transitioning to', ChunkState[newState]);
+        // if (this.isTransitioning || this.state === newState) {
+        //     console.log(
+        //         'Chunk',
+        //         this.id,
+        //         'already in state',
+        //         ChunkState[newState],
+        //         'or transitioning. Cancelled request to go ' + ChunkState[newState]
+        //     );
+        //     return;
+        // }
+
+        console.log('Chunk', this.id, 'transitioning to', ChunkState[newState]);
         this.isTransitioning = true;
         this.state = newState;
 
         try {
             if (newState === ChunkState.Near) {
                 await this.transitionToNear();
+                this.nearIndicesSet.add(this.id);
             } else if (newState === ChunkState.Far) {
+                this.nearIndicesSet.delete(this.id);
                 await this.transitionToFar();
             }
             this.state = newState;
@@ -94,8 +108,9 @@ export class Chunk {
         const highDetailMesh = new THREE.Mesh(
             highDetailGeometry,
             new THREE.MeshStandardMaterial({
-                color: new THREE.Color(0x228822),
-                side: THREE.BackSide
+                color: new THREE.Color(0xaaa),
+                side: THREE.BackSide,
+                wireframe: false
             })
         );
         highDetailMesh.name = `near-${this.id}`;
@@ -114,7 +129,7 @@ export class Chunk {
 
     private async getHighDetailGeometry(): Promise<THREE.BufferGeometry> {
         // Load or generate high detail geometry for this chunk
-        const detailedGeometry = await this.runWorker(Chunk.pureTiles[this.id], 8);
+        const detailedGeometry = await this.runWorker(Chunk.pureTiles[this.id], 6);
         return detailedGeometry;
     }
 
@@ -167,15 +182,16 @@ export class Chunk {
     }
 
     private async unloadLowDetailGeometry(): Promise<void> {
+        // TODO Remove low detail by updating
         // Remove low detail geometry from scene if it exists
         const lowDetailMesh = this.scene.getObjectByName(`far-${this.id}`);
         if (lowDetailMesh) this.scene.remove(lowDetailMesh);
     }
 
     private async transitionToFar() {
-        await this.unloadHighDetailGeometry();
-        await this.nextFrame();
         await this.loadLowDetailGeometry();
+        await this.nextFrame();
+        await this.unloadHighDetailGeometry();
     }
 
     private async unloadHighDetailGeometry(): Promise<void> {
@@ -188,16 +204,28 @@ export class Chunk {
     }
 
     private async loadLowDetailGeometry(): Promise<void> {
-        const geom = Chunk.triGeoms[this.id];
-        const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0x228822),
-            side: THREE.BackSide
+        // const geom = Chunk.triGeoms[this.id];
+        // const material = new THREE.MeshStandardMaterial({
+        //     color: new THREE.Color(0x228822),
+        //     side: THREE.BackSide,
+        //     wireframe: true
+        // });
+        // const mesh = new THREE.Mesh(geom, material);
+        // mesh.name = `far-${this.id}`;
+        // mesh.castShadow = true;
+        // mesh.receiveShadow = true;
+        // this.scene.add(mesh);
+        const markerGeometry = new THREE.TorusKnotGeometry(100, 10);
+        const markerMaterial = new THREE.MeshPhongMaterial({
+            color: 'red',
+            wireframe: false
         });
-        const mesh = new THREE.Mesh(geom, material);
-        mesh.name = `far-${this.id}`;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        this.scene.add(mesh);
+        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]);
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.copy(mpDisp);
+        marker.name = `far-${this.id}`;
+        marker.castShadow = true;
+        marker.receiveShadow = true;
     }
 
     private nextFrame(): Promise<void> {

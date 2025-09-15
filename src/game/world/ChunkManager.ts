@@ -2,7 +2,7 @@ import type { Hexasphere, Tile } from 'hexasphere';
 import * as THREE from 'three/webgpu';
 import { generateWorldGeometry } from './GenerateWorldGeometry';
 import { Chunk, ChunkState } from './Chunk';
-import { color, js } from 'three/tsl';
+import * as TSL from 'three/tsl';
 
 const DEFAULT_DETAIL = 3;
 const DISTANCE_TO_DETAIL = {
@@ -24,9 +24,14 @@ export class ChunkManager {
     private distanceMatrix: number[][];
     private maxDistance: number;
 
+    // private nearChunksUniform;
+    private nearIndicesSet = new Set<number>();
+
     private chunks: Map<number, Chunk> = new Map(); // Map of chunkIndex to Chunk
     private updateQueue: Array<{ chunkId: number; newState: ChunkState }> = [];
     public maxUpdatesThisFrame: number = 2;
+
+    private playerPos: THREE.Vector3 = new THREE.Vector3();
 
     constructor(scene: THREE.Scene, hexasphere: Hexasphere) {
         this.scene = scene;
@@ -41,6 +46,108 @@ export class ChunkManager {
         Chunk.triGeoms = this.triGeoms;
         Chunk.midPoints = this.midPoints;
 
+        const positions: number[] = [];
+        const indices: number[] = [];
+
+        let vertexOffset = 0;
+        this.triGeoms.forEach((geom, index) => {
+            const posAttr = geom.getAttribute('position');
+            const indexAttr = geom.getIndex();
+
+            const vertexCount = posAttr.count;
+            positions.push(...posAttr.array);
+
+            const origIndices = indexAttr!.array;
+            for (let i = 0; i < origIndices.length; i++) {
+                indices.push(origIndices[i] + vertexOffset);
+            }
+
+            vertexOffset += vertexCount;
+        });
+
+        // Build merged geometry
+        const mergedGeometry = new THREE.BufferGeometry();
+        mergedGeometry.setAttribute(
+            'position',
+            new THREE.Float32BufferAttribute(positions, 3, false)
+        );
+        mergedGeometry.setIndex(indices);
+
+        // Recalculate normals for proper lighting
+        mergedGeometry.computeVertexNormals();
+
+        const mat = new THREE.MeshStandardNodeMaterial({
+            side: THREE.BackSide,
+            wireframe: false,
+            color: new THREE.Color('red')
+        });
+
+        const nearChunksUniform = TSL.uniformArray(Array(7).fill(25), 'int');
+        // console.log(nearChunksUniform.getNodeType()); ivec4
+        nearChunksUniform.onFrameUpdate(() => {
+            // const nearIndices = this.getChunkIndicesByDistance(
+            //     this.closestChunk(this.playerPos),
+            //     CHUNK_RENDER_DISTANCE,
+            //     true
+            // ); // Returns like [ 1, 2, 3, 4, 5, 6, 7 ] or [ 1, 2, 3, 4, 5, 6]
+
+            let chunkIndicesArray = Array.from(this.nearIndicesSet);
+            if (chunkIndicesArray.length !== 6 && chunkIndicesArray.length !== 7) {
+                // console.warn(
+                //     'Warning: nearIndicesSet should have 6 or 7 elements, but has',
+                //     chunkIndicesArray.length,
+                //     chunkIndicesArray
+                // );
+                chunkIndicesArray = chunkIndicesArray.slice(0, 7);
+            }
+            let paddedArray = chunkIndicesArray.flatMap((v) => [v, v, v, v]);
+            if (paddedArray.length === 6 * 4) paddedArray = [...paddedArray, -1, -1, -1, -1];
+            return new Int32Array(paddedArray);
+            // if (chunkIndicesArray.length === 6) chunkIndicesArray = [...chunkIndicesArray, -1];
+            // const out = chunkIndicesArray.map((id) => TSL.uint(id));
+            // console.log(object);
+            // console.log(out);
+            // return out;
+        });
+
+        const pentVertexCount = this.triGeoms
+            .find((g, i) => this.hexasphere.tiles[i].boundary.length === 5)!
+            .getAttribute('position').count;
+        const hexVertexCount = this.triGeoms
+            .find((g, i) => this.hexasphere.tiles[i].boundary.length === 6)!
+            .getAttribute('position').count;
+
+        const chunkID = TSL.Fn(() => {
+            let chunkid = TSL.select(
+                TSL.vertexIndex.lessThan(pentVertexCount * 12),
+                TSL.vertexIndex.div(pentVertexCount).toUint(),
+                TSL.vertexIndex
+                    .sub(pentVertexCount * 12)
+                    .div(hexVertexCount)
+                    .add(12)
+                    .toUint()
+            );
+            return chunkid;
+        });
+        const matchChunk = TSL.Fn(() => {
+            let found = TSL.bool(false);
+
+            const chunkid = chunkID();
+
+            TSL.Loop(7, ({ i }) => {
+                const ele = nearChunksUniform.element(TSL.int(i)).toUint();
+                found.orAssign(chunkid.equal(ele));
+            });
+
+            return found.toFloat();
+        });
+        mat.colorNode = TSL.color(chunkID().mod(10).toFloat().div(10));
+        mat.positionNode = TSL.positionWorld.add(
+            TSL.positionWorld.normalize().mul(matchChunk().mul(2000))
+        );
+        const mergedMesh = new THREE.Mesh(mergedGeometry, mat);
+        this.scene.add(mergedMesh);
+
         this.neighboursByIndex = this.getNeighboursByIndex(this.hexasphere);
         this.distanceMatrix = this.createDistanceMatrix(this.neighboursByIndex);
         this.maxDistance = this.distanceMatrix.reduce((max, row) => Math.max(max, ...row), 0);
@@ -51,13 +158,23 @@ export class ChunkManager {
     }
 
     public update(playerPosition: THREE.Vector3) {
+        this.playerPos.copy(playerPosition);
+
         const newChunkIndex = this.closestChunk(playerPosition);
         if (newChunkIndex !== this.chunkIndex) {
             this.chunkIndex = newChunkIndex;
 
             // Find nearby and faraway chunks ()
-            const nearIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, true);
-            const farIndices = this.getChunkIndicesByDistance(CHUNK_RENDER_DISTANCE, false);
+            const nearIndices = this.getChunkIndicesByDistance(
+                this.chunkIndex,
+                CHUNK_RENDER_DISTANCE,
+                true
+            );
+            const farIndices = this.getChunkIndicesByDistance(
+                this.chunkIndex,
+                CHUNK_RENDER_DISTANCE,
+                false
+            );
 
             for (const chunkId of nearIndices) {
                 const chunk = this.chunks.get(chunkId);
@@ -92,7 +209,7 @@ export class ChunkManager {
         let chunk = this.chunks.get(id);
 
         if (!chunk) {
-            chunk = new Chunk(id, this.scene);
+            chunk = new Chunk(id, this.scene, this.nearIndicesSet);
             this.chunks.set(id, chunk);
         }
         return chunk;
@@ -117,8 +234,12 @@ export class ChunkManager {
         return closest;
     }
 
-    private getChunkIndicesByDistance(maxDistance: number, withinDistance: boolean): number[] {
-        return this.distanceMatrix[this.chunkIndex]
+    private getChunkIndicesByDistance(
+        chunkIndex: number,
+        maxDistance: number,
+        withinDistance: boolean
+    ): number[] {
+        return this.distanceMatrix[chunkIndex]
             .map((distance, index) => ({ distance, index }))
             .filter(({ distance }) =>
                 withinDistance ? distance <= maxDistance : distance > maxDistance
@@ -143,7 +264,6 @@ export class ChunkManager {
 
             for (const neighborId of neighbours.neighborIds) {
                 const index = keys.findIndex((id) => id === neighborId);
-                if (index < 0) console.log(neighborId);
                 currentIndexes.push(index);
             }
             neighbourIndexes.push(currentIndexes);

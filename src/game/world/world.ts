@@ -15,7 +15,7 @@ export class WorldMesh {
         this.scene = scene;
 
         // Initialize chunk managers
-        this.hexasphere = new Hexasphere(3000, 14, 1.0);
+        this.hexasphere = new Hexasphere(3000, 12, 1.0);
         this.chunkManager = new ChunkManager(scene, this.hexasphere);
 
         //TEST
