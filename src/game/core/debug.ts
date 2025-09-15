@@ -25,7 +25,7 @@ export class SphereDebug {
         this.debugDiv.style.cssText = `
       position: fixed;
       top: 10px;
-      left: 10px;
+      right: 10px;
       background: rgba(0, 0, 0, 0.8);
       color: #00ff00;
       font-family: 'Courier New', monospace;

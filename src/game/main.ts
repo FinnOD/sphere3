@@ -3,7 +3,8 @@ import { createRenderer } from './core/renderer';
 import { FirstPersonControls } from './core/controls';
 import { WorldMesh } from './world/world';
 import { PlayerPositionController } from './core/player';
-import { sphereDebug } from './core/debug';
+import Stats from 'stats.js';
+import { ThreeMFLoader } from 'three/examples/jsm/Addons.js';
 
 let gameRunning = false;
 let controls: FirstPersonControls;
@@ -18,6 +19,24 @@ export function startGame() {
 
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     renderer = createRenderer(canvas);
+    renderer.info.autoReset = false;
+
+    const stats = new Stats();
+    // stats.showPanel(0);
+    stats.showPanel(2);
+    document.body.appendChild(stats.dom);
+
+    // Create a custom stats panel for Three.js info
+    const threeStatsPanel = document.createElement('div');
+    threeStatsPanel.style.position = 'absolute';
+    threeStatsPanel.style.bottom = '0px';
+    threeStatsPanel.style.left = '80px';
+    threeStatsPanel.style.color = '#fff';
+    threeStatsPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+    threeStatsPanel.style.padding = '5px';
+    threeStatsPanel.style.fontFamily = 'monospace';
+    threeStatsPanel.style.fontSize = '12px';
+    document.body.appendChild(threeStatsPanel);
 
     const scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
@@ -85,6 +104,7 @@ export function startGame() {
 
     const clock = new THREE.Clock();
 
+    let calls = 0;
     function animate() {
         if (!gameRunning) return;
 
@@ -99,15 +119,21 @@ export function startGame() {
         // Update world based on player position
         world.update(player.getPosition());
 
-        // Add chunk info to debug (but don't overwrite other debug data)
-        // const currentChunkIndex = world.getCurrentChunkIndex();
-        // if (currentChunkIndex !== undefined) {
-        //     sphereDebug.update({
-        //         chunkIndex: currentChunkIndex
-        //     });
-        // }
-
+        stats.begin();
         renderer.renderAsync(scene, camera);
+        stats.end();
+        const info = renderer.info;
+        threeStatsPanel.innerHTML = `
+            <strong>Three.js Stats</strong><br>
+            Geometries: ${info.memory.geometries}<br>
+            Textures: ${info.memory.textures}<br>
+            Triangles: ${info.render.triangles - 1}<br>
+            Points: ${info.render.points}<br>
+            Lines: ${info.render.lines}<br>
+            Draw Calls: ${info.render.calls - calls}
+        `;
+        calls = info.render.calls;
+        renderer.info.reset();
     }
     animate();
 }
