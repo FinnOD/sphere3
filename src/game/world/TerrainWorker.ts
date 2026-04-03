@@ -24,8 +24,8 @@ function makeBufferGeometry(serializedGeometry: SerializedBufferGeometry, subdiv
     return subdivided;
 }
 
-onmessage = function (e) {
-    const [serializedGeometry, detail]: [SerializedBufferGeometry, number] = e.data;
+onmessage = function (e: MessageEvent<[SerializedBufferGeometry, number]>) {
+    const [serializedGeometry, detail] = e.data;
 
     const detailedGeometry = makeBufferGeometry(serializedGeometry, detail);
     const detailedSerializedGeometry = serializeBufferGeometry(detailedGeometry);

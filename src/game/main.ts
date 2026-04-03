@@ -4,7 +4,6 @@ import { FirstPersonControls } from './core/controls';
 import { WorldMesh } from './world/world';
 import { PlayerPositionController } from './core/player';
 import Stats from 'stats.js';
-import { ThreeMFLoader } from 'three/examples/jsm/Addons.js';
 
 let gameRunning = false;
 let controls: FirstPersonControls;
@@ -85,10 +84,8 @@ export function startGame() {
 
     // Handle window resize
     const handleResize = () => {
-        if (camera && renderer) {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-        }
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
     };
     window.addEventListener('resize', handleResize);
 
@@ -120,7 +117,7 @@ export function startGame() {
         world.update(player.getPosition());
 
         stats.begin();
-        renderer.renderAsync(scene, camera);
+        void renderer.renderAsync(scene, camera);
         stats.end();
         const info = renderer.info;
         threeStatsPanel.innerHTML = `

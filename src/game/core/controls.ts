@@ -28,13 +28,13 @@ export class FirstPersonControls {
 
     public getEulerAngles(): THREE.Euler {
         // Get the current euler angles from the pointer lock controls
-        const object = this.controls.getObject();
+        const object = this.controls.object;
         this.euler.setFromQuaternion(object.quaternion);
         return this.euler.clone();
     }
 
     public get object() {
-        return this.controls.getObject();
+        return this.controls.object;
     }
 
     public get isLocked() {

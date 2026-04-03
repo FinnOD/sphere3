@@ -67,14 +67,17 @@ export class PlayerPositionController {
 
     private setupKeyboardListeners() {
         const handleKey = (event: KeyboardEvent, pressed: boolean) => {
+            if (!(event.code in KEYS)) return;
             const action = KEYS[event.code as keyof typeof KEYS];
-            if (action && action in this.keys) {
-                this.keys[action as keyof typeof this.keys] = pressed;
-            }
+            this.keys[action] = pressed;
         };
 
-        document.addEventListener('keydown', (e) => handleKey(e, true));
-        document.addEventListener('keyup', (e) => handleKey(e, false));
+        document.addEventListener('keydown', (e) => {
+            handleKey(e, true);
+        });
+        document.addEventListener('keyup', (e) => {
+            handleKey(e, false);
+        });
     }
 
     private setupMouseListeners() {
@@ -164,7 +167,7 @@ export class PlayerPositionController {
     }
 
     public lock() {
-        document.body.requestPointerLock();
+        void document.body.requestPointerLock();
     }
 
     public unlock() {

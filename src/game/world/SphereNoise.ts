@@ -1,5 +1,4 @@
 import { createNoise3D, type NoiseFunction3D } from 'simplex-noise';
-// @ts-ignore
 import { perlin3D } from '@leodeslf/perlin-noise';
 import alea from 'alea';
 
@@ -27,7 +26,7 @@ export function getDisplacementOld(x: number, y: number, z: number): number {
     let amp = 1;
     let freq = 1;
     let t = 0;
-    for (var i = 1; i < 4; i++) {
+    for (let i = 1; i < 4; i++) {
         t += perlin3D(x * freq, y * freq, z * freq) * amp;
         amp *= 0.4;
         freq *= 2;
@@ -36,7 +35,7 @@ export function getDisplacementOld(x: number, y: number, z: number): number {
     amp = t / 2;
     freq = 1;
     let n = 0;
-    for (var i = 1; i < 10; i++) {
+    for (let i = 1; i < 10; i++) {
         n += perlin3D(x * freq, y * freq, z * freq) * amp;
         amp *= 0.5;
         freq *= 2;
@@ -45,16 +44,16 @@ export function getDisplacementOld(x: number, y: number, z: number): number {
     if (n > max) max = n;
     if (n < min) min = n;
 
-    let top = 0.07;
+    const top = 0.07;
     if (n > top) n = top + (n - top) / 5;
 
     return (0.5 + 10 * (1 - 0.8 * n * (1 - n * n))) / 10;
     // return (0.5+(10*(1-n)))/10;
     // return 1+(0.05*(1-n));
-    return 1;
+    // return 1;
 }
 
-function scaleInput(x: number, y: number, z: number, scale: number): number[] {
+function scaleInput(x: number, y: number, z: number, scale: number): [number, number, number] {
     return [x / scale, y / scale, z / scale];
 }
 
@@ -84,17 +83,17 @@ function scaleValue(value: number, min: number, max: number): number {
     return ((value + 1) / 2) * (max - min) + min;
 }
 
-let range = [0.5, 1.5];
-let hist = {};
+const range = [0.5, 1.5];
+const hist = {};
 export function getDisplacement(x: number, y: number, z: number): number {
-    let [wx, wy, wz] = scaleInput(x, y, z, 3000);
+    const [wx, wy, wz] = scaleInput(x, y, z, 3000);
 
     let landMap = fbm(wx, wy, wz, 1.5, 12, 1.0, waterNoise3D);
     // if (landMap < 0.05) landMap = 0.0;
     landMap = landMap * landMap;
     // [x, y, z] = scaleInput(x, y, z, 4);
 
-    let [hx, hy, hz] = scaleInput(x, y, z, 1500);
+    const [hx, hy, hz] = scaleInput(x, y, z, 1500);
     let height = fbm(hx, hy, hz, 1.5, 12, 5, heightNoise3D); // Math.pow(1-landMap, 2)*fbm(x+1000, y-10000, z, 2, 9, 1.0);
     height *= height;
     // if (height < 0.02) height = 0.0;

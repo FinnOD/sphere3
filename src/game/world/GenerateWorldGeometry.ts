@@ -2,7 +2,6 @@ import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
 import type { Hexasphere } from 'hexasphere';
 import { LoopSubdivision } from 'three-subdivide';
 import { getDisplacement } from '../world/SphereNoise';
-// @ts-ignore
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils';
 
 const subDivideParams = {
@@ -20,14 +19,14 @@ export function noisifyBuffer(geometry: BufferGeometry): BufferGeometry {
 
     for (let i = 0; i < positionAttribute.array.length; i += 3) {
         position.set(
-            positionAttribute.array[i],
-            positionAttribute.array[i + 1],
-            positionAttribute.array[i + 2]
+            positionAttribute.array[i]!,
+            positionAttribute.array[i + 1]!,
+            positionAttribute.array[i + 2]!
         );
         position.setLength(3000);
 
         noise = getDisplacement(position.x, position.y, position.z);
-        let normal = position.clone().normalize().multiplyScalar(-noise);
+        const normal = position.clone().normalize().multiplyScalar(-noise);
         position.add(normal);
 
         positionAttribute.array[i] = position.x;
@@ -44,19 +43,19 @@ export function generateWorldGeometry(
     hexasphere: Hexasphere,
     nSubdivide: number
 ): [Array<BufferGeometry>, Array<BufferGeometry>, Array<Vector3>] {
-    let pureTiles: Array<BufferGeometry> = [];
-    let triGeoms: Array<BufferGeometry> = [];
-    let midPoints: Array<Vector3> = [];
+    const pureTiles: Array<BufferGeometry> = [];
+    const triGeoms: Array<BufferGeometry> = [];
+    const midPoints: Array<Vector3> = [];
 
-    let vec = new Vector3();
+    const vec = new Vector3();
     for (const t of hexasphere.tiles) {
-        let vertices = [];
-        let indices = [];
+        const vertices = [];
+        const indices = [];
         vec.set(t.centerPoint.x, t.centerPoint.y, t.centerPoint.z).normalize().multiplyScalar(3000);
         vertices.push(vec.x, vec.y, vec.z);
         midPoints.push(vec.clone());
         for (let j = 0; j < t.boundary.length; j++) {
-            let bp = t.boundary[j];
+            const bp = t.boundary[j]!;
             vec.set(bp.x, bp.y, bp.z).normalize().multiplyScalar(3000);
             vertices.push(vec.x, vec.y, vec.z);
         }

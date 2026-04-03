@@ -7,26 +7,25 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "lint": "prettier --plugin-search-dir . --check . && eslint .",
-        "format": "prettier --plugin-search-dir . --write .",
-        "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+        "lint": "eslint . && prettier --check .",
+        "format": "prettier --write . && eslint . --fix",
+        "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json",
+        "prepare": "simple-git-hooks"
     },
     "devDependencies": {
         "@sveltejs/vite-plugin-svelte": "^6.1.0",
         "@tsconfig/svelte": "^5.0.4",
         "@types/stats.js": "^0.17.4",
         "@types/three": "^0.179.0",
-        "@typescript-eslint/eslint-plugin": "^8.39.0",
-        "@typescript-eslint/parser": "^8.39.0",
         "eslint": "^9.32.0",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-prettier": "^5.5.4",
         "eslint-plugin-svelte": "^3.11.0",
         "prettier": "^3.6.2",
         "prettier-plugin-svelte": "^3.4.0",
+        "simple-git-hooks": "^2.13.1",
         "svelte": "^5.37.3",
         "svelte-check": "^4.3.1",
         "typescript": "~5.8.3",
+        "typescript-eslint": "^8.58.0",
         "vite": "^7.1.0",
         "vite-plugin-top-level-await": "^1.6.0"
     },
@@ -40,5 +39,8 @@
         "stats.js": "^0.17.0",
         "three": "^0.179.1",
         "three-subdivide": "^1.1.5"
+    },
+    "simple-git-hooks": {
+        "pre-commit": "pnpm lint && pnpm check"
     }
 }

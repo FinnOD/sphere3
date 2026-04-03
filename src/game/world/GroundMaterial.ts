@@ -80,7 +80,7 @@ export class HollowSphereMaterial extends THREE.MeshStandardNodeMaterial {
         const height = float(3000).sub(length(positionWorld));
         const sandy = clamp(float(0.5).sub(height.mul(height)), 0, 1);
         outputColor = mix(outputColor, vec3(0.6, 0.5, 0.04), sandy);
-        let a = outputColor.mul(customLighting.add(0.05)); // 0.1 = ambient
+        const a = outputColor.mul(customLighting.add(0.05)); // 0.1 = ambient
         this.colorNode = mix(a, this.altColor, float(1));
     }
 

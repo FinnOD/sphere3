@@ -1,4 +1,4 @@
-import type { Hexasphere, Tile } from 'hexasphere';
+import type { Hexasphere } from 'hexasphere';
 import * as THREE from 'three/webgpu';
 import { generateWorldGeometry } from './GenerateWorldGeometry';
 import { Chunk, ChunkState } from './Chunk';
@@ -59,7 +59,7 @@ export class ChunkManager {
 
             const origIndices = indexAttr!.array;
             for (let i = 0; i < origIndices.length; i++) {
-                indices.push(origIndices[i] + vertexOffset);
+                indices.push(origIndices[i]! + vertexOffset);
             }
 
             vertexOffset += vertexCount;
@@ -111,14 +111,14 @@ export class ChunkManager {
         });
 
         const pentVertexCount = this.triGeoms
-            .find((g, i) => this.hexasphere.tiles[i].boundary.length === 5)!
+            .find((g, i) => this.hexasphere.tiles[i]!.boundary.length === 5)!
             .getAttribute('position').count;
         const hexVertexCount = this.triGeoms
-            .find((g, i) => this.hexasphere.tiles[i].boundary.length === 6)!
+            .find((g, i) => this.hexasphere.tiles[i]!.boundary.length === 6)!
             .getAttribute('position').count;
 
         const chunkID = TSL.Fn(() => {
-            let chunkid = TSL.select(
+            const chunkid = TSL.select(
                 TSL.vertexIndex.lessThan(pentVertexCount * 12),
                 TSL.vertexIndex.div(pentVertexCount).toUint(),
                 TSL.vertexIndex
@@ -130,7 +130,7 @@ export class ChunkManager {
             return chunkid;
         });
         const matchChunk = TSL.Fn(() => {
-            let found = TSL.bool(false);
+            const found = TSL.bool(false);
 
             const chunkid = chunkID();
 
@@ -178,7 +178,7 @@ export class ChunkManager {
 
             for (const chunkId of nearIndices) {
                 const chunk = this.chunks.get(chunkId);
-                if (chunk?.state !== ChunkState.Near || chunk === undefined) {
+                if (chunk?.state !== ChunkState.Near) {
                     this.queueChunkUpdate(chunkId, ChunkState.Near);
                 }
             }
@@ -186,7 +186,7 @@ export class ChunkManager {
             // Check far chunks
             for (const chunkId of farIndices) {
                 const chunk = this.chunks.get(chunkId);
-                if (chunk?.state !== ChunkState.Far || chunk === undefined) {
+                if (chunk?.state !== ChunkState.Far) {
                     this.queueChunkUpdate(chunkId, ChunkState.Far);
                 }
             }
@@ -201,7 +201,7 @@ export class ChunkManager {
         for (let i = 0; i < updatesThisFrame - numTransitions; i++) {
             const task = this.updateQueue.shift()!;
             const chunk = this.getOrCreateChunk(task.chunkId);
-            chunk.setStateAsync(task.newState);
+            void chunk.setStateAsync(task.newState);
         }
     }
 
@@ -224,7 +224,7 @@ export class ChunkManager {
         let closest = 0;
         let closestDist = Infinity;
         for (let i = 0; i < this.midPoints.length; i++) {
-            let distance = this.midPoints[i].distanceToSquared(playerPosition);
+            const distance = this.midPoints[i]!.distanceToSquared(playerPosition);
             if (distance < closestDist) {
                 closest = i;
                 closestDist = distance;
@@ -239,8 +239,7 @@ export class ChunkManager {
         maxDistance: number,
         withinDistance: boolean
     ): number[] {
-        return this.distanceMatrix[chunkIndex]
-            .map((distance, index) => ({ distance, index }))
+        return this.distanceMatrix[chunkIndex]!.map((distance, index) => ({ distance, index }))
             .filter(({ distance }) =>
                 withinDistance ? distance <= maxDistance : distance > maxDistance
             )
@@ -248,18 +247,20 @@ export class ChunkManager {
     }
 
     private getDetailForDistance(distance: number): number {
-        return DISTANCE_TO_DETAIL[distance as keyof typeof DISTANCE_TO_DETAIL] ?? DEFAULT_DETAIL;
+        return (
+            (DISTANCE_TO_DETAIL as Record<number, number | undefined>)[distance] ?? DEFAULT_DETAIL
+        );
     }
 
     private getNeighboursByIndex(hex: Hexasphere): number[][] {
-        // @ts-ignore TS2341 - Property 'tileLookup' is private in Hexasphere
-        const tileLookup: Record<string, Hexasphere['tiles'][number]> = hex.tileLookup;
+        // @ts-expect-error TS2341 - Property 'tileLookup' is private in Hexasphere
+        const tileLookup = hex.tileLookup as Record<string, Hexasphere['tiles'][number]>;
 
-        let neighbourIndexes: number[][] = [];
+        const neighbourIndexes: number[][] = [];
         const keys = Object.keys(tileLookup);
 
         for (const tileId in tileLookup) {
-            const neighbours = tileLookup[tileId];
+            const neighbours = tileLookup[tileId]!;
             const currentIndexes = [];
 
             for (const neighborId of neighbours.neighborIds) {
@@ -277,19 +278,21 @@ export class ChunkManager {
 
         // Initialize the distance matrix with infinity values.
         for (let i = 0; i < numTiles; i++) {
-            distanceMatrix[i] = Array(numTiles).fill(Infinity);
-            distanceMatrix[i][i] = 0; // Distance to itself is 0.
+            const row = Array<number>(numTiles).fill(Infinity);
+            row[i] = 0; // Distance to itself is 0.
+            distanceMatrix[i] = row;
         }
 
         // Populate the distance matrix using BFS.
         for (let i = 0; i < numTiles; i++) {
+            const row = distanceMatrix[i]!;
             const queue = [i];
             const visited = new Set([i]);
             while (queue.length > 0) {
                 const currentTile = queue.shift() as number;
-                for (const neighbour of neighbourIndexes[currentTile]) {
+                for (const neighbour of neighbourIndexes[currentTile]!) {
                     if (!visited.has(neighbour)) {
-                        distanceMatrix[i][neighbour] = distanceMatrix[i][currentTile] + 1;
+                        row[neighbour] = row[currentTile]! + 1;
                         visited.add(neighbour);
                         queue.push(neighbour);
                     }

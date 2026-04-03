@@ -1,7 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { getDisplacement } from './SphereNoise.js';
 import Worker from './TerrainWorker?worker&module';
-import { deserializeBufferGeometry, serializeBufferGeometry } from './SerializeBufferGeometry';
+import {
+    deserializeBufferGeometry,
+    serializeBufferGeometry,
+    type SerializedBufferGeometry
+} from './SerializeBufferGeometry';
 
 export enum ChunkState {
     Near,
@@ -18,6 +22,7 @@ export class Chunk {
     static distanceMatrix: number[][];
     static isPentagon: boolean[];
     static maxDistance: number;
+    private static geometryCache = new Map<string, THREE.BufferGeometry>();
 
     public state!: ChunkState;
     public isTransitioning: boolean = false;
@@ -32,14 +37,14 @@ export class Chunk {
         this.scene = scene;
         this.nearIndicesSet = nearIndicesSet;
 
-        this.setStateAsync(ChunkState.Far);
+        void this.setStateAsync(ChunkState.Far);
 
         const markerGeometry = new THREE.SphereGeometry(3, 20, 20);
         const markerMaterial = new THREE.MeshPhongMaterial({
             color: 'white',
             wireframe: false
         });
-        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]);
+        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]!);
         const marker = new THREE.Mesh(markerGeometry, markerMaterial);
         marker.position.copy(mpDisp);
         marker.name = `low-${this.id}`;
@@ -48,18 +53,20 @@ export class Chunk {
         // this.scene.add(marker);
 
         this.trees = [];
-        for (let i = 0; i < Chunk.pureTiles[this.id].attributes.position.count; i++) {
+        const pureTile = Chunk.pureTiles[this.id]!;
+        const posAttr = pureTile.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i < posAttr.count; i++) {
             const tree = new THREE.Mesh(
                 new THREE.ConeGeometry(2.5, 6, 8),
                 new THREE.MeshStandardMaterial({ color: 'green' })
             );
-            const x = Chunk.pureTiles[this.id].attributes.position.getX(i);
-            const y = Chunk.pureTiles[this.id].attributes.position.getY(i);
-            const z = Chunk.pureTiles[this.id].attributes.position.getZ(i);
+            const x = posAttr.getX(i);
+            const y = posAttr.getY(i);
+            const z = posAttr.getZ(i);
             const xyz = new THREE.Vector3(x, y, z);
             xyz.setLength(3000);
             const noise = getDisplacement(xyz.x, xyz.y, xyz.z);
-            let normal = xyz.clone().normalize().multiplyScalar(-noise);
+            const normal = xyz.clone().normalize().multiplyScalar(-noise);
             xyz.add(normal);
             xyz.add(xyz.clone().normalize().multiplyScalar(-3.5)); // Half height of cone + small offset
 
@@ -92,7 +99,7 @@ export class Chunk {
             if (newState === ChunkState.Near) {
                 await this.transitionToNear();
                 this.nearIndicesSet.add(this.id);
-            } else if (newState === ChunkState.Far) {
+            } else {
                 this.nearIndicesSet.delete(this.id);
                 await this.transitionToFar();
             }
@@ -118,7 +125,7 @@ export class Chunk {
         highDetailMesh.receiveShadow = true;
         await this.nextFrame();
         this.scene.add(highDetailMesh);
-        await this.unloadLowDetailGeometry();
+        this.unloadLowDetailGeometry();
 
         // Add trees
         for (const tree of this.trees) {
@@ -129,14 +136,14 @@ export class Chunk {
 
     private async getHighDetailGeometry(): Promise<THREE.BufferGeometry> {
         // Load or generate high detail geometry for this chunk
-        const detailedGeometry = await this.runWorker(Chunk.pureTiles[this.id], 6);
+        const detailedGeometry = await this.runWorker(Chunk.pureTiles[this.id]!, 6);
         return detailedGeometry;
     }
 
     private runWorker(tile: THREE.BufferGeometry, detail: number): Promise<THREE.BufferGeometry> {
         return new Promise((resolve, reject) => {
             // Check cache first
-            const cachedGeometry = (window as any).geometryCache?.get(this.id, detail);
+            const cachedGeometry = Chunk.geometryCache.get(`${this.id}-${detail}`);
             if (cachedGeometry) {
                 // console.log(`Using cached geometry for chunk ${this.chunkIndex} detail ${detail}`);
                 resolve(cachedGeometry);
@@ -146,28 +153,28 @@ export class Chunk {
             // console.log(`Starting worker for chunk ${this.chunkIndex} with detail ${detail}`);
             this.worker = new Worker();
 
-            this.worker!.onmessage = (e) => {
+            this.worker.onmessage = (e) => {
                 // console.log(`Worker completed for chunk ${this.chunkIndex}`);
                 try {
-                    const detailedSerializedGeometry = e.data;
+                    const detailedSerializedGeometry = e.data as SerializedBufferGeometry;
                     const detailedGeometry = deserializeBufferGeometry(detailedSerializedGeometry);
 
                     // Cache the result
-                    (window as any).geometryCache?.set(this.id, detail, detailedGeometry);
+                    Chunk.geometryCache.set(`${this.id}-${detail}`, detailedGeometry);
 
                     resolve(detailedGeometry);
                 } catch (error) {
                     console.error(`Error deserializing geometry for chunk ${this.id}:`, error);
-                    reject(error);
+                    reject(error instanceof Error ? error : new Error(String(error)));
                 } finally {
-                    this.worker!.terminate();
+                    this.worker?.terminate();
                 }
             };
 
-            this.worker!.onerror = (err) => {
+            this.worker.onerror = (err) => {
                 console.error(`Worker error for chunk ${this.id}:`, err);
-                reject(err);
-                this.worker!.terminate();
+                reject(new Error(err.message));
+                this.worker?.terminate();
             };
 
             try {
@@ -175,13 +182,13 @@ export class Chunk {
                 this.worker.postMessage([serializedGeometry, detail]);
             } catch (error) {
                 console.error(`Error serializing geometry for chunk ${this.id}:`, error);
-                reject(error);
-                this.worker!.terminate();
+                reject(error instanceof Error ? error : new Error(String(error)));
+                this.worker.terminate();
             }
         });
     }
 
-    private async unloadLowDetailGeometry(): Promise<void> {
+    private unloadLowDetailGeometry(): void {
         // TODO Remove low detail by updating
         // Remove low detail geometry from scene if it exists
         const lowDetailMesh = this.scene.getObjectByName(`far-${this.id}`);
@@ -189,12 +196,12 @@ export class Chunk {
     }
 
     private async transitionToFar() {
-        await this.loadLowDetailGeometry();
+        this.loadLowDetailGeometry();
         await this.nextFrame();
-        await this.unloadHighDetailGeometry();
+        this.unloadHighDetailGeometry();
     }
 
-    private async unloadHighDetailGeometry(): Promise<void> {
+    private unloadHighDetailGeometry(): void {
         const highDetailMesh = this.scene.getObjectByName(`near-${this.id}`);
         if (highDetailMesh) this.scene.remove(highDetailMesh);
 
@@ -203,7 +210,7 @@ export class Chunk {
         }
     }
 
-    private async loadLowDetailGeometry(): Promise<void> {
+    private loadLowDetailGeometry(): void {
         // const geom = Chunk.triGeoms[this.id];
         // const material = new THREE.MeshStandardMaterial({
         //     color: new THREE.Color(0x228822),
@@ -220,7 +227,7 @@ export class Chunk {
             color: 'red',
             wireframe: false
         });
-        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]);
+        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]!);
         const marker = new THREE.Mesh(markerGeometry, markerMaterial);
         marker.position.copy(mpDisp);
         marker.name = `far-${this.id}`;
@@ -229,15 +236,19 @@ export class Chunk {
     }
 
     private nextFrame(): Promise<void> {
-        return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        return new Promise((resolve) =>
+            requestAnimationFrame(() => {
+                resolve();
+            })
+        );
     }
 
     private mpDisp(mp: THREE.Vector3): THREE.Vector3 {
-        let normal = mp.clone().normalize();
-        let onSphere = normal.clone().multiplyScalar(3000);
+        const normal = mp.clone().normalize();
+        const onSphere = normal.clone().multiplyScalar(3000);
 
-        let noise = getDisplacement(onSphere.x, onSphere.y, onSphere.z);
-        let ballOffset = normal.clone().multiplyScalar(-3);
+        const noise = getDisplacement(onSphere.x, onSphere.y, onSphere.z);
+        const ballOffset = normal.clone().multiplyScalar(-3);
 
         onSphere.add(normal.multiplyScalar(-noise)).add(ballOffset);
 

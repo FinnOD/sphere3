@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
     // For issues with the Three.js WebGPU build, refer to this link:

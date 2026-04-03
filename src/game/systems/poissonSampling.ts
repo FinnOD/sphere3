@@ -1,0 +1,3 @@
+function generatePointsOnSphere() {
+    return null;
+}

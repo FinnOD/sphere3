@@ -14,13 +14,15 @@
         "skipLibCheck": true,
         "sourceMap": true,
         "strict": true,
-        "types": [
-            "vite/client"
-        ],
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "exactOptionalPropertyTypes": true,
+        "allowUnreachableCode": false,
+        "allowUnusedLabels": false,
+        "types": ["vite/client"]
     },
-    "include": [
-        "src/**/*.ts",
-        "src/**/*.js",
-        "src/**/*.svelte"
-    ]
+    "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }

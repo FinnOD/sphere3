@@ -15,8 +15,8 @@ export function serializeBufferGeometry(bufferGeometry: BufferGeometry): Seriali
     const serializedAttributes: { [name: string]: TransferableAttribute } = {};
 
     for (const attributeName in attributes) {
-        const attribute = attributes[attributeName];
-        const array = attribute.array.buffer;
+        const attribute = attributes[attributeName]!;
+        const array = attribute.array.buffer as ArrayBuffer;
         serializedAttributes[attributeName] = {
             array,
             itemSize: attribute.itemSize
@@ -40,7 +40,7 @@ export function deserializeBufferGeometry(
     }
 
     for (const attributeName in attributes) {
-        const attributeData = attributes[attributeName];
+        const attributeData = attributes[attributeName]!;
         const array = new Float32Array(attributeData.array);
         const attribute = new BufferAttribute(array, attributeData.itemSize);
         bufferGeometry.setAttribute(attributeName, attribute);

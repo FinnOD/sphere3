@@ -1,11 +1,29 @@
 import * as THREE from 'three';
 
+type DebugData = {
+    playerPos?: THREE.Vector3;
+    distanceFromCenter?: number;
+    surfaceNormal?: THREE.Vector3;
+    cameraForward?: THREE.Vector3;
+    cameraUp?: THREE.Vector3;
+    cameraRight?: THREE.Vector3;
+    horizontalAngle?: number;
+    verticalAngle?: number;
+    displacement?: number;
+    movementInput?: THREE.Vector3;
+    transformedMovement?: THREE.Vector3;
+    chunkIndex?: number;
+    poleDirection?: THREE.Vector3;
+    yaw?: number;
+    pitch?: number;
+};
+
 // Debug utility for spherical camera system
 export class SphereDebug {
-    private static instance: SphereDebug;
+    private static instance: SphereDebug | undefined;
     private debugDiv!: HTMLDivElement;
     private enabled: boolean = true;
-    private debugData: any = {}; // Accumulate debug data
+    private debugData: DebugData = {}; // Accumulate debug data
 
     private constructor() {
         this.createDebugDiv();
@@ -42,12 +60,22 @@ export class SphereDebug {
 
     private setupGlobalAccess() {
         // Add to window for console access
-        (window as any).sphereDebug = {
-            toggle: () => this.toggle(),
-            enable: () => this.enable(),
-            disable: () => this.disable(),
-            log: (message: string) => this.log(message),
-            clear: () => this.clear()
+        window.sphereDebug = {
+            toggle: () => {
+                this.toggle();
+            },
+            enable: () => {
+                this.enable();
+            },
+            disable: () => {
+                this.disable();
+            },
+            log: (message: string) => {
+                this.log(message);
+            },
+            clear: () => {
+                this.clear();
+            }
         };
     }
 
