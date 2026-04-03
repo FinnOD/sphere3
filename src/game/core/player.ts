@@ -13,7 +13,7 @@ const KEYS = {
 
 const SPHERE_RADIUS = 3000;
 const PLAYER_HEIGHT = 2;
-const SPEED = 20;
+const SPEED = 4;
 const RUN_MULTIPLIER = 60;
 const SENSITIVITY = 0.003;
 const MAX_PITCH = (85 * Math.PI) / 180;

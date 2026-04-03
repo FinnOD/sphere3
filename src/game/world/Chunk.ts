@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { getDisplacement } from './SphereNoise.js';
 import Worker from './TerrainWorker?worker&module';
+import { samplePointsOnTile } from '../systems/poissonSampling';
 import {
     deserializeBufferGeometry,
     serializeBufferGeometry,
@@ -29,7 +30,8 @@ export class Chunk {
 
     private worker: Worker | null = null;
 
-    private trees: THREE.Mesh[] = [];
+    private treeMesh: THREE.InstancedMesh | null = null;
+    private trunkMesh: THREE.InstancedMesh | null = null;
     private nearIndicesSet: Set<number>;
 
     constructor(id: number, scene: THREE.Scene, nearIndicesSet: Set<number>) {
@@ -52,31 +54,66 @@ export class Chunk {
         marker.receiveShadow = true;
         // this.scene.add(marker);
 
-        this.trees = [];
-        const pureTile = Chunk.pureTiles[this.id]!;
-        const posAttr = pureTile.getAttribute('position') as THREE.BufferAttribute;
-        for (let i = 0; i < posAttr.count; i++) {
-            const tree = new THREE.Mesh(
-                new THREE.ConeGeometry(2.5, 6, 8),
-                new THREE.MeshStandardMaterial({ color: 'green' })
-            );
-            const x = posAttr.getX(i);
-            const y = posAttr.getY(i);
-            const z = posAttr.getZ(i);
-            const xyz = new THREE.Vector3(x, y, z);
-            xyz.setLength(3000);
-            const noise = getDisplacement(xyz.x, xyz.y, xyz.z);
-            const normal = xyz.clone().normalize().multiplyScalar(-noise);
-            xyz.add(normal);
-            xyz.add(xyz.clone().normalize().multiplyScalar(-3.5)); // Half height of cone + small offset
+        // Base geometry is unit-sized; per-instance scale carries the actual dimensions
+        const TREES_PER_CHUNK = 1000;
 
-            tree.position.copy(xyz);
-            // tree.position.add(chunk.getPosition());
-            // tree.position.y += 25; // Half height of cone
-            tree.lookAt(new THREE.Vector3(0, 0, 0));
-            tree.rotateX(Math.PI / 2);
-            this.trees.push(tree);
+        const pureTile = Chunk.pureTiles[this.id]!;
+        const positions = samplePointsOnTile(pureTile, TREES_PER_CHUNK);
+
+        // Unit cone (r=1, h=1) — scaled per instance
+        const treeGeom = new THREE.ConeGeometry(1, 1, 12);
+        const treeMat = new THREE.MeshStandardMaterial({ color: 0x2d6a1f });
+        this.treeMesh = new THREE.InstancedMesh(treeGeom, treeMat, positions.length);
+        this.treeMesh.name = `trees-${this.id}`;
+        this.treeMesh.castShadow = true;
+        this.treeMesh.receiveShadow = true;
+
+        // Unit cylinder (r=1, h=1) — scaled per instance
+        const trunkGeom = new THREE.CylinderGeometry(1, 1, 1, 12);
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b3a1f });
+        this.trunkMesh = new THREE.InstancedMesh(trunkGeom, trunkMat, positions.length);
+        this.trunkMesh.name = `trunks-${this.id}`;
+        this.trunkMesh.castShadow = true;
+        this.trunkMesh.receiveShadow = true;
+
+        const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+        const dummy = new THREE.Object3D();
+        const up = new THREE.Vector3(0, 1, 0);
+        for (let i = 0; i < positions.length; i++) {
+            const pos = positions[i]!;
+            const normal = pos.clone().normalize();
+            const noise = getDisplacement(pos.x, pos.y, pos.z);
+            const groundPos = pos.clone().addScaledVector(normal, -noise);
+            const quat = new THREE.Quaternion().setFromUnitVectors(up, normal.clone().negate());
+
+            // Randomise dimensions for this tree
+            const treeHeight = rand(5, 14);
+            const treeRadius = rand(1.2, 3.5);
+            const trunkHeight = rand(0.8, 2.0);
+            const trunkRadius = rand(0.2, 0.55);
+            // Extra length buried below ground so trunks don't float on slopes
+            const trunkBury = 6;
+            const totalTrunkHeight = trunkHeight + trunkBury;
+
+            // Foliage cone — centre sits trunkHeight + half-cone inward from ground
+            dummy.position.copy(groundPos).addScaledVector(normal, -(trunkHeight + treeHeight / 2));
+            dummy.quaternion.copy(quat);
+            dummy.scale.set(treeRadius, treeHeight, treeRadius);
+            dummy.updateMatrix();
+            this.treeMesh.setMatrixAt(i, dummy.matrix);
+
+            // Trunk cylinder — extends trunkHeight above ground and trunkBury below
+            dummy.position
+                .copy(groundPos)
+                .addScaledVector(normal, -(trunkHeight / 2 - trunkBury / 2));
+            dummy.quaternion.copy(quat);
+            dummy.scale.set(trunkRadius, totalTrunkHeight, trunkRadius);
+            dummy.updateMatrix();
+            this.trunkMesh.setMatrixAt(i, dummy.matrix);
         }
+        this.treeMesh.instanceMatrix.needsUpdate = true;
+        this.trunkMesh.instanceMatrix.needsUpdate = true;
     }
 
     public async setStateAsync(newState: ChunkState) {
@@ -127,11 +164,8 @@ export class Chunk {
         this.scene.add(highDetailMesh);
         this.unloadLowDetailGeometry();
 
-        // Add trees
-        for (const tree of this.trees) {
-            this.scene.add(tree);
-            await this.nextFrame();
-        }
+        if (this.treeMesh) this.scene.add(this.treeMesh);
+        if (this.trunkMesh) this.scene.add(this.trunkMesh);
     }
 
     private async getHighDetailGeometry(): Promise<THREE.BufferGeometry> {
@@ -205,9 +239,8 @@ export class Chunk {
         const highDetailMesh = this.scene.getObjectByName(`near-${this.id}`);
         if (highDetailMesh) this.scene.remove(highDetailMesh);
 
-        for (const tree of this.trees) {
-            this.scene.remove(tree);
-        }
+        if (this.treeMesh) this.scene.remove(this.treeMesh);
+        if (this.trunkMesh) this.scene.remove(this.trunkMesh);
     }
 
     private loadLowDetailGeometry(): void {
@@ -222,17 +255,18 @@ export class Chunk {
         // mesh.castShadow = true;
         // mesh.receiveShadow = true;
         // this.scene.add(mesh);
-        const markerGeometry = new THREE.TorusKnotGeometry(100, 10);
-        const markerMaterial = new THREE.MeshPhongMaterial({
-            color: 'red',
-            wireframe: false
-        });
-        const mpDisp = this.mpDisp(Chunk.midPoints[this.id]!);
-        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        marker.position.copy(mpDisp);
-        marker.name = `far-${this.id}`;
-        marker.castShadow = true;
-        marker.receiveShadow = true;
+        // const markerGeometry = new THREE.TorusKnotGeometry(100, 10);
+        // const markerMaterial = new THREE.MeshPhongMaterial({
+        //     color: 'red',
+        //     wireframe: false
+        // });
+        // const mpDisp = this.mpDisp(Chunk.midPoints[this.id]!);
+        // const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        // marker.position.copy(mpDisp);
+        // marker.name = `far-${this.id}`;
+        // marker.castShadow = true;
+        // marker.receiveShadow = true;
+        // this.scene.add(marker);
     }
 
     private nextFrame(): Promise<void> {

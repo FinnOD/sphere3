@@ -36,7 +36,7 @@ export function startGame() {
     document.body.appendChild(threeStatsPanel);
 
     const scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 10000);
     // camera.position.set(0, 3010, 0);
 
     // Add some lighting for the world
