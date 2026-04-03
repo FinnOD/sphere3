@@ -1,12 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { createRenderer } from './core/renderer';
-import { FirstPersonControls } from './core/controls';
 import { WorldMesh } from './world/world';
 import { PlayerPositionController } from './core/player';
 import Stats from 'stats.js';
 
 let gameRunning = false;
-let controls: FirstPersonControls;
 let player: PlayerPositionController;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGPURenderer;
@@ -93,9 +91,6 @@ export function startGame() {
     const initialPosition = new THREE.Vector3(0, -2998, 0); // Inside the sphere (radius 3000 - playerHeight 2)
     player = new PlayerPositionController(camera, initialPosition);
 
-    // Initialize controls (simplified now)
-    controls = new FirstPersonControls(camera, document.body);
-
     // Create the world mesh system
     world = new WorldMesh(scene, initialPosition);
 
@@ -108,7 +103,6 @@ export function startGame() {
         requestAnimationFrame(animate);
 
         const delta = clock.getDelta();
-        controls.update(delta);
 
         // Update player position and camera
         player.update(delta);
@@ -133,10 +127,6 @@ export function startGame() {
         renderer.info.reset();
     }
     animate();
-}
-
-export function getControls() {
-    return controls;
 }
 
 export function getPlayer() {

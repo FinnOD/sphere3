@@ -91,7 +91,7 @@ export class Chunk {
         //     return;
         // }
 
-        console.log('Chunk', this.id, 'transitioning to', ChunkState[newState]);
+        // console.log('Chunk', this.id, 'transitioning to', ChunkState[newState]);
         this.isTransitioning = true;
         this.state = newState;
 
