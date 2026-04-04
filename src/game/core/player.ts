@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import { sphereDebug } from './debug';
 import { getDisplacement } from '../world/SphereNoise';
+import {
+    SPHERE_RADIUS,
+    PLAYER_HEIGHT,
+    CAMERA_FOV,
+    PLAYER_SPEED,
+    PLAYER_RUN_MULTIPLIER,
+    MOUSE_SENSITIVITY
+} from '../constants';
 
 const KEYS = {
     KeyW: 'forward',
@@ -11,12 +19,7 @@ const KEYS = {
     ShiftRight: 'run'
 } as const;
 
-const SPHERE_RADIUS = 3000;
-const PLAYER_HEIGHT = 2;
-const SPEED = 4;
-const RUN_MULTIPLIER = 60;
-const SENSITIVITY = 0.003;
-const MAX_PITCH = (85 * Math.PI) / 180;
+const MAX_PITCH = (CAMERA_FOV * Math.PI) / 180;
 
 /**
  * Player controller for inside-sphere locomotion.
@@ -77,13 +80,13 @@ export class PlayerPositionController {
 
             this._up.copy(this.position).normalize().negate();
 
-            this._tempQ.setFromAxisAngle(this._up, -e.movementX * SENSITIVITY);
+            this._tempQ.setFromAxisAngle(this._up, -e.movementX * MOUSE_SENSITIVITY);
             this.heading.applyQuaternion(this._tempQ);
             this.heading.addScaledVector(this._up, -this.heading.dot(this._up)).normalize();
 
             this.pitch = Math.max(
                 -MAX_PITCH,
-                Math.min(MAX_PITCH, this.pitch - e.movementY * SENSITIVITY)
+                Math.min(MAX_PITCH, this.pitch - e.movementY * MOUSE_SENSITIVITY)
             );
 
             this.updateCamera();
@@ -116,7 +119,7 @@ export class PlayerPositionController {
     }
 
     public update(delta: number) {
-        const speed = SPEED * (this.keys.run ? RUN_MULTIPLIER : 1) * delta;
+        const speed = PLAYER_SPEED * (this.keys.run ? PLAYER_RUN_MULTIPLIER : 1) * delta;
 
         // Current tangent-plane basis
         this._up.copy(this.position).normalize().negate();

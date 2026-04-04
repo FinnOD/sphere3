@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { getDisplacement } from './SphereNoise.js';
 import Worker from './TerrainWorker?worker&module';
 import { samplePointsOnTile } from '../systems/poissonSampling';
+import { TREES_PER_CHUNK, CHUNK_DETAIL_LEVEL_HIGH, SPHERE_RADIUS } from '../constants';
 import {
     deserializeBufferGeometry,
     serializeBufferGeometry,
@@ -55,8 +56,6 @@ export class Chunk {
         // this.scene.add(marker);
 
         // Base geometry is unit-sized; per-instance scale carries the actual dimensions
-        const TREES_PER_CHUNK = 1000;
-
         const pureTile = Chunk.pureTiles[this.id]!;
         const positions = samplePointsOnTile(pureTile, TREES_PER_CHUNK);
 
@@ -153,8 +152,8 @@ export class Chunk {
             highDetailGeometry,
             new THREE.MeshStandardMaterial({
                 color: new THREE.Color(0xaaa),
-                side: THREE.BackSide,
-                wireframe: false
+                side: THREE.BackSide
+                // wireframe: true
             })
         );
         highDetailMesh.name = `near-${this.id}`;
@@ -164,13 +163,16 @@ export class Chunk {
         this.scene.add(highDetailMesh);
         this.unloadLowDetailGeometry();
 
-        if (this.treeMesh) this.scene.add(this.treeMesh);
-        if (this.trunkMesh) this.scene.add(this.trunkMesh);
+        // if (this.treeMesh) this.scene.add(this.treeMesh);
+        // if (this.trunkMesh) this.scene.add(this.trunkMesh);
     }
 
     private async getHighDetailGeometry(): Promise<THREE.BufferGeometry> {
         // Load or generate high detail geometry for this chunk
-        const detailedGeometry = await this.runWorker(Chunk.pureTiles[this.id]!, 6);
+        const detailedGeometry = await this.runWorker(
+            Chunk.pureTiles[this.id]!,
+            CHUNK_DETAIL_LEVEL_HIGH
+        );
         return detailedGeometry;
     }
 
@@ -279,7 +281,7 @@ export class Chunk {
 
     private mpDisp(mp: THREE.Vector3): THREE.Vector3 {
         const normal = mp.clone().normalize();
-        const onSphere = normal.clone().multiplyScalar(3000);
+        const onSphere = normal.clone().multiplyScalar(SPHERE_RADIUS);
 
         const noise = getDisplacement(onSphere.x, onSphere.y, onSphere.z);
         const ballOffset = normal.clone().multiplyScalar(-3);

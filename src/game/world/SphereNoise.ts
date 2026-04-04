@@ -1,5 +1,6 @@
 import { createNoise3D, type NoiseFunction3D } from 'simplex-noise';
 import { perlin3D } from '@leodeslf/perlin-noise';
+import { SPHERE_RADIUS } from '../constants';
 import alea from 'alea';
 
 const prng = alea('random_seed');
@@ -86,21 +87,21 @@ function scaleValue(value: number, min: number, max: number): number {
 const range = [0.5, 1.5];
 const hist = {};
 export function getDisplacement(x: number, y: number, z: number): number {
-    const [wx, wy, wz] = scaleInput(x, y, z, 3000);
+    const [wx, wy, wz] = scaleInput(x, y, z, SPHERE_RADIUS);
 
     let landMap = fbm(wx, wy, wz, 1.5, 12, 1.0, waterNoise3D);
     // if (landMap < 0.05) landMap = 0.0;
     landMap = landMap * landMap;
     // [x, y, z] = scaleInput(x, y, z, 4);
 
-    const [hx, hy, hz] = scaleInput(x, y, z, 1500);
+    const [hx, hy, hz] = scaleInput(x, y, z, SPHERE_RADIUS / 2);
     let height = fbm(hx, hy, hz, 1.5, 12, 5, heightNoise3D); // Math.pow(1-landMap, 2)*fbm(x+1000, y-10000, z, 2, 9, 1.0);
     height *= height;
     // if (height < 0.02) height = 0.0;
     // console.log(height)
 
     // console.log(1000*landMap);
-    return 30 * height * landMap - 0.1; //*landMap;
+    return (SPHERE_RADIUS / 100) * height * landMap - 0.1; //*landMap;
     // let newA = fbm(x, y, z, 1.3, 4, 1.0);
 
     // return scaleValue(noise3D(x, y, z), 2/3, 4/3);

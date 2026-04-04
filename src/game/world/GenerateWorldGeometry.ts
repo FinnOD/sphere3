@@ -2,6 +2,7 @@ import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
 import type { Hexasphere } from 'hexasphere';
 import { LoopSubdivision } from 'three-subdivide';
 import { getDisplacement } from '../world/SphereNoise';
+import { SPHERE_RADIUS } from '../constants';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils';
 
 const subDivideParams = {
@@ -23,7 +24,7 @@ export function noisifyBuffer(geometry: BufferGeometry): BufferGeometry {
             positionAttribute.array[i + 1]!,
             positionAttribute.array[i + 2]!
         );
-        position.setLength(3000);
+        position.setLength(SPHERE_RADIUS);
 
         noise = getDisplacement(position.x, position.y, position.z);
         const normal = position.clone().normalize().multiplyScalar(-noise);
@@ -51,12 +52,14 @@ export function generateWorldGeometry(
     for (const t of hexasphere.tiles) {
         const vertices = [];
         const indices = [];
-        vec.set(t.centerPoint.x, t.centerPoint.y, t.centerPoint.z).normalize().multiplyScalar(3000);
+        vec.set(t.centerPoint.x, t.centerPoint.y, t.centerPoint.z)
+            .normalize()
+            .multiplyScalar(SPHERE_RADIUS);
         vertices.push(vec.x, vec.y, vec.z);
         midPoints.push(vec.clone());
         for (let j = 0; j < t.boundary.length; j++) {
             const bp = t.boundary[j]!;
-            vec.set(bp.x, bp.y, bp.z).normalize().multiplyScalar(3000);
+            vec.set(bp.x, bp.y, bp.z).normalize().multiplyScalar(SPHERE_RADIUS);
             vertices.push(vec.x, vec.y, vec.z);
         }
 

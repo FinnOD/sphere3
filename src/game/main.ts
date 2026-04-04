@@ -3,6 +3,19 @@ import { createRenderer } from './core/renderer';
 import { WorldMesh } from './world/world';
 import { PlayerPositionController } from './core/player';
 import Stats from 'stats.js';
+import { CAMERA_FOV, CAMERA_NEAR, CAMERA_FAR, SPHERE_RADIUS, PLAYER_HEIGHT } from './constants';
+
+// Rendering & Lighting
+const AMBIENT_LIGHT_COLOR = 0x404040;
+const AMBIENT_LIGHT_INTENSITY = 0.2;
+const POINT_LIGHT_INTENSITY = 1_000 * SPHERE_RADIUS;
+const SUN_MESH_SCALE = SPHERE_RADIUS / 20;
+
+// UI
+const STATS_PANEL_LEFT = 80;
+const STATS_PANEL_OPACITY = 0.8;
+const STATS_PANEL_PADDING = 5;
+const STATS_PANEL_FONT_SIZE = 12;
 
 let gameRunning = false;
 let player: PlayerPositionController;
@@ -27,20 +40,25 @@ export function startGame() {
     const threeStatsPanel = document.createElement('div');
     threeStatsPanel.style.position = 'absolute';
     threeStatsPanel.style.bottom = '0px';
-    threeStatsPanel.style.left = '80px';
+    threeStatsPanel.style.left = `${STATS_PANEL_LEFT}px`;
     threeStatsPanel.style.color = '#fff';
-    threeStatsPanel.style.backgroundColor = 'rgba(0,0,0,0.8)';
-    threeStatsPanel.style.padding = '5px';
+    threeStatsPanel.style.backgroundColor = `rgba(0,0,0,${STATS_PANEL_OPACITY})`;
+    threeStatsPanel.style.padding = `${STATS_PANEL_PADDING}px`;
     threeStatsPanel.style.fontFamily = 'monospace';
-    threeStatsPanel.style.fontSize = '12px';
+    threeStatsPanel.style.fontSize = `${STATS_PANEL_FONT_SIZE}px`;
     document.body.appendChild(threeStatsPanel);
 
     const scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 10000);
-    // camera.position.set(0, 3010, 0);
+    camera = new THREE.PerspectiveCamera(
+        CAMERA_FOV,
+        window.innerWidth / window.innerHeight,
+        CAMERA_NEAR,
+        CAMERA_FAR
+    );
+    // camera.position.set(0, SPHERE_RADIUS + PLAYER_HEIGHT, 0);
 
     // Add some lighting for the world
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+    const ambientLight = new THREE.AmbientLight(AMBIENT_LIGHT_COLOR, AMBIENT_LIGHT_INTENSITY);
     scene.add(ambientLight);
 
     // const sunLight = new THREE.SpotLight(0xffffff, 1_000_000, 2000, Math.PI / 4, 0.5);
@@ -56,18 +74,19 @@ export function startGame() {
     // scene.add(sunLight);
     // scene.add(sunLight.target);
 
-    const lighting = new THREE.PointLight(0xffffff, 100_000_00);
+    const lighting = new THREE.PointLight(0xffffff, POINT_LIGHT_INTENSITY);
     lighting.castShadow = true;
+    lighting.position.set(SPHERE_RADIUS / 4, 0, 0);
     scene.add(lighting);
-    // lighting.shadow.camera.near = 500;
-    // lighting.shadow.camera.far = 5000;
-    // lighting.shadow.mapSize.width = 2048;
-    // lighting.shadow.mapSize.height = 2048;
-    // lighting.shadow.bias = -0.001;
+    lighting.shadow.camera.near = SPHERE_RADIUS / 4;
+    lighting.shadow.camera.far = 5000;
+    lighting.shadow.mapSize.width = 2048;
+    lighting.shadow.mapSize.height = 2048;
+    lighting.shadow.bias = -0.001;
 
     // Add sun
     const sunMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(3, 20, 20),
+        new THREE.SphereGeometry(1, 20, 20),
         new THREE.MeshPhongMaterial({
             color: 'pink',
             wireframe: false,
@@ -75,7 +94,7 @@ export function startGame() {
         })
     );
     sunMesh.position.copy(lighting.position);
-    sunMesh.scale.set(20, 20, 20);
+    sunMesh.scale.set(SUN_MESH_SCALE, SUN_MESH_SCALE, SUN_MESH_SCALE);
     sunMesh.castShadow = false;
     sunMesh.receiveShadow = false;
     scene.add(sunMesh);
@@ -88,7 +107,7 @@ export function startGame() {
     window.addEventListener('resize', handleResize);
 
     // Initialize player position controller first
-    const initialPosition = new THREE.Vector3(0, -2998, 0); // Inside the sphere (radius 3000 - playerHeight 2)
+    const initialPosition = new THREE.Vector3(0, SPHERE_RADIUS - PLAYER_HEIGHT, 0); // Inside the sphere
     player = new PlayerPositionController(camera, initialPosition);
 
     // Create the world mesh system

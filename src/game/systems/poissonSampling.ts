@@ -1,9 +1,10 @@
 import * as THREE from 'three/webgpu';
+import { SPHERE_RADIUS } from '../constants';
 
 /**
  * Uniformly samples `count` random points within the triangulated area of a
  * BufferGeometry tile. Points are returned projected onto the sphere surface
- * (radius 3000) — terrain noise is NOT applied here.
+ * (radius SPHERE_RADIUS) — terrain noise is NOT applied here.
  */
 export function samplePointsOnTile(geometry: THREE.BufferGeometry, count: number): THREE.Vector3[] {
     const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -65,7 +66,7 @@ export function samplePointsOnTile(geometry: THREE.BufferGeometry, count: number
             ta.y * u + tb.y * v + tc.y * w,
             ta.z * u + tb.z * v + tc.z * w
         );
-        point.setLength(3000); // project onto sphere
+        point.setLength(SPHERE_RADIUS); // project onto sphere
         points.push(point);
     }
 
